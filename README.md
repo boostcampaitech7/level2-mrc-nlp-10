@@ -1,5 +1,5 @@
 # Open-Domain Question Answering
-본 프로젝트는 MRC(기계독해)란 주어진 지문을 이해하고, 주어진 질의의 답변을 추론하는 태스크입니다. => pui 추가
+본 프로젝트는 MRC(기계독해)란 주어진 지문을 이해하고, 주어진 질의의 답변을 추론하는 태스크입니다. => pui 추가중 (pui pui pui)
 
 
 
@@ -71,3 +71,4 @@
 
 
 ## Reference
+![My Image](https://upload3.inven.co.kr/upload/2021/03/13/bbs/i013687510742.gif)
