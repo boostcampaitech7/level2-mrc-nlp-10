@@ -64,11 +64,11 @@ class Dense_search_retrieval_arguments:
         metadata = {'help': "모델이름 입니다."}
     )
     num_neg: int = field(
-        default = 5,
+        default = 3,
         metadata = {'help': "네거티브 샘플링 몇개할건지를 고릅니다."}
     )
     num_train_epochs: int = field(
-        default = 2,
+        default = 5,
         metadata = {'help': "에폭입니다."}
     )
     per_device_train_batch_size: int = field(
@@ -90,4 +90,50 @@ class Dense_search_retrieval_arguments:
     top_k : int = field(
         default = 3,
         metadata = {'help' : '몇개의 후보를 faiss indexer에서 뽑을건지 정합니다.'}
+    )
+    use_wandb : bool = field(
+        default = True,
+        metadata = {'help' : 'wandb를 '}
+    )
+    
+class Extraction_based_MRC_arguments:
+    max_seq_length : int = field(
+        default = 384,
+        metadata = {'help' : '질문과 컨텍스트, special 토큰을 합한 문자열의 최대 길이입니다.'}
+    )
+    pad_to_max_length : bool = field(
+        default = True,
+        metadata = {'help' : '최대 길이의 문장을 기준으로 패딩을 수행합니다.'}
+    )
+    doc_stride : int = field(
+        default = 128,
+        metadata = {'help' : '긴 컨텍스트를 나눌 때 앞의 컨텍스트와 얼마나 겹치게 시퀀스를 구성할 것인지 정합니다.'}
+    )
+    # max_train_samples : int = field(
+    #     default = 16,
+    #     metadata = {'help' : 'train 배치사이즈를 정합니다.'}
+    # )
+    # max_val_samples : int = field(
+    #     default = 16,
+    #     metadata = {'help' : 'valid 배치사이즈르 정합니다.'}
+    # )
+    preprocessing_num_workers : int = field(
+        default = 4,
+        metadata = {'help' : '프로세스 몇개 쓸건지입니다. 높으면 빠르긴한데 메모리를 많이씁니다.'}
+    )
+    batch_size : int = field(
+        default = 8,
+        metadata = {'help' : '배치사이즈를 정합니다.'}
+    )
+    num_train_epochs : int = field(
+        default = 5,
+        metadata = {'help' : '에폭을 정합니다.'}
+    )
+    n_best_size : int = field(
+        default = 20,
+        metadata = {'help' : ''}
+    )
+    max_answer_length : int = field(
+        default = 30,
+        metadata = {'help' : ''}
     )

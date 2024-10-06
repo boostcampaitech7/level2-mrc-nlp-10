@@ -7,6 +7,7 @@ from datasets import load_from_disk
 from torch.utils.data import TensorDataset
 from torch.utils.data import Dataset
 import torch
+import random
 
 
 #  -----------------Dense Embedding을 위해 Dataset클래스를 정의하는 부분입니다------------------------------------------------------
@@ -14,13 +15,14 @@ import torch
 
 class DenseDataset(Dataset):
     def __init__(self, p_input_ids, p_attention_mask, p_token_type_ids, q_input_ids = None,
-                  q_attention_mask = None, q_token_type_ids = None):
+                  q_attention_mask = None, q_token_type_ids = None, labels = None):
         self.p_input_ids = p_input_ids
         self.p_attention_mask = p_attention_mask
         self.p_token_type_ids = p_token_type_ids
         self.q_input_ids = q_input_ids
         self.q_attention_mask = q_attention_mask
         self.q_token_type_ids = q_token_type_ids
+        self.labels = labels
 
     def __len__(self):
         return len(self.p_input_ids)
@@ -33,7 +35,7 @@ class DenseDataset(Dataset):
             'q_input_ids': self.q_input_ids[idx],
             'q_attention_mask': self.q_attention_mask[idx],
             'q_token_type_ids': self.q_token_type_ids[idx],
-            'labels' : []
+            'labels' : self.labels[idx]
         }
     
 #  --------------------------MRC 모델을 학습하기 위한 mrc_dataset을 선언하는 부분입니다-----------------------------------------------------------
@@ -184,17 +186,25 @@ class prepare_dataset:
         training_dataset = self.dataset['train']
         num_neg = self.args.num_neg
         p_with_neg = []
+        labels = []
         corpus = list(set(self.dataset['train']['context']))
         tokenizer = transformers.AutoTokenizer.from_pretrained(self.args.model_name)
+        corpus_set = set(corpus)  # 집합으로 변환하여 검색 속도 향상
 
         for context in training_dataset['context']:
             while True:
                 neg_idxs = np.random.choice(len(corpus), size=num_neg, replace=False)
-                if context not in [corpus[i] for i in neg_idxs]:
-                    p_neg = [corpus[i] for i in neg_idxs]
-                    p_with_neg.append(context)
-                    p_with_neg.extend(p_neg)  # 각각의 부정 예시를 추가
+                neg_samples = [corpus[i] for i in neg_idxs]
+
+                if context not in corpus_set.intersection(neg_samples):  # 집합을 사용하여 확인
+                    p_neg = neg_samples + [context]  # 긍정 예시 추가
+                    random.shuffle(p_neg)
+
+                    context_index = p_neg.index(context)  # context의 위치 찾기
+                    labels.append(context_index)  # index 추가 (0 기반 인덱스)
+                    p_with_neg.extend(p_neg)  # 섞인 리스트 추가
                     break
+
 
         q_seqs = tokenizer(training_dataset['question'], padding='max_length', 
                         truncation=True, return_tensors='pt')
@@ -214,6 +224,7 @@ class prepare_dataset:
             q_seqs['input_ids'],
             q_seqs['attention_mask'],
             q_seqs['token_type_ids'],
+            labels
         )
 
         return train_dataset
@@ -224,17 +235,25 @@ class prepare_dataset:
         validation_dataset = self.dataset['validation']
         num_neg = self.args.num_neg
         p_with_neg = []
-        corpus = list(set(self.dataset['train']['context']))  # 학습 데이터의 문서 코퍼스 사용
+        labels = []
+        corpus = list(set(self.dataset['train']['context']))
         tokenizer = transformers.AutoTokenizer.from_pretrained(self.args.model_name)
+        corpus_set = set(corpus)  # 집합으로 변환하여 검색 속도 향상
 
         for context in validation_dataset['context']:
             while True:
                 neg_idxs = np.random.choice(len(corpus), size=num_neg, replace=False)
-                if context not in [corpus[i] for i in neg_idxs]:
-                    p_neg = [corpus[i] for i in neg_idxs]
-                    p_with_neg.append(context)
-                    p_with_neg.extend(p_neg)  # 각각의 부정 예시를 추가
+                neg_samples = [corpus[i] for i in neg_idxs]
+
+                if context not in corpus_set.intersection(neg_samples):  # 집합을 사용하여 확인
+                    p_neg = neg_samples + [context]  # 긍정 예시 추가
+                    random.shuffle(p_neg)
+
+                    context_index = p_neg.index(context)  # context의 위치 찾기
+                    labels.append(context_index)  # index 추가 (0 기반 인덱스)
+                    p_with_neg.extend(p_neg)  # 섞인 리스트 추가
                     break
+
 
         q_seqs = tokenizer(validation_dataset['question'], padding='max_length', 
                         truncation=True, return_tensors='pt')
@@ -252,6 +271,7 @@ class prepare_dataset:
                                       q_seqs['input_ids'], 
                                       q_seqs['attention_mask'],
                                       q_seqs['token_type_ids'],
+                                      labels
         )
 
         return valid_dataset

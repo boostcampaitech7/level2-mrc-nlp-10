@@ -15,11 +15,12 @@ import torch.nn.functional as F
 import gc
 import random
 from tqdm import tqdm
+import wandb
 
-torch.manual_seed(2023)
-torch.cuda.manual_seed(2023)
-np.random.seed(2023)
-random.seed(2023)
+torch.manual_seed(2024)
+torch.cuda.manual_seed(2024)
+np.random.seed(2024)
+random.seed(2024)
 
 
 class TF_IDFSearch:
@@ -106,6 +107,7 @@ class Dense_embedding_retrieval_model(PreTrainedModel):
         self.args = args
         self.p_model = transformers.AutoModel.from_pretrained(model_name)
         self.q_model = transformers.AutoModel.from_pretrained(model_name)
+        wandb = self.args.use_wandb
 
     def forward(self, p_input_ids, p_attention_mask, p_token_type_ids,
                 q_input_ids, q_attention_mask, q_token_type_ids, labels):
@@ -126,17 +128,14 @@ class Dense_embedding_retrieval_model(PreTrainedModel):
 
 
 
-        p_outputs = p_outputs.last_hidden_state[:, 0, :]  # (batch_size, emb_dim)
-        q_outputs = q_outputs.last_hidden_state[:, 0, :]  # (batch_size, emb_dim)
+        p_outputs = p_outputs.pooler_output  # (batch_size, emb_dim)
+        q_outputs = q_outputs.pooler_output  # (batch_size, emb_dim)
 
         p_outputs = p_outputs.view(self.args.per_device_train_batch_size, self.args.num_neg+1, -1)  # (batch_size, num_neg+1, emb_dim)
         q_outputs = q_outputs.view(self.args.per_device_train_batch_size, 1, -1)  # (batch_size, 1, emb_dim)
 
-        sim_scores = torch.bmm(q_outputs, p_outputs.transpose(1, 2)).squeeze(1)  # (batch_size, num_neg+1)
-        sim_scores = F.log_softmax(sim_scores, dim=1)
-        labels = torch.zeros(self.args.per_device_train_batch_size, dtype=torch.long, device=p_input_ids.device)
-
-        loss = F.nll_loss(sim_scores, labels)
+        sim_scores = torch.matmul(q_outputs, p_outputs.transpose(1, 2)).squeeze(1)  # (batch_size, num_neg+1)
+        loss = F.cross_entropy(sim_scores, labels)
 
         return {
             'loss': loss,
@@ -150,8 +149,6 @@ def compute_metrics(eval_preds):
     # logits에서 가장 높은 값을 가진 인덱스를 예측값으로 사용
     logits = torch.tensor(logits, dtype = torch.long)
     predictions = torch.argmax(logits, dim=1).detach().cpu().numpy()
-    labels = torch.zeros(len(predictions))
-    labels = labels.detach().cpu().numpy()
     
     accuracy = accuracy_score(labels, predictions)  
     f1 = f1_score(labels, predictions, average='weighted') 
@@ -162,14 +159,14 @@ class Dense_embedding_retrieval:
     def __init__(self, args):
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.args = args
-        self.datas = prepare_dataset(args)
-        self.train_dataset = self.datas.get_dense_train_dataset()
-        self.valid_dataset = self.datas.get_dense_valid_dataset()
-        self.model = Dense_embedding_retrieval_model(args)
+        self.model = Dense_embedding_retrieval_model(self.args)
+        if self.args.use_wandb:
+            self.start_wandb()
 
     def train(self):
-        torch.cuda.set_per_process_memory_fraction(0.8)  # GPU 메모리 사용 비율 조정
-        torch.backends.cuda.matmul.allow_tf32 = True  # TF32 지원 활성화
+        self.datas = prepare_dataset(self.args)
+        self.train_dataset = self.datas.get_dense_train_dataset()
+        self.valid_dataset = self.datas.get_dense_valid_dataset()
         gc.collect()
         torch.cuda.empty_cache()
         data_collator = DefaultDataCollator()
@@ -177,22 +174,25 @@ class Dense_embedding_retrieval:
             output_dir='./results',
             num_train_epochs = self.args.num_train_epochs,
             per_device_train_batch_size = self.args.per_device_train_batch_size,
-            per_device_eval_batch_size=self.args.per_device_train_batch_size,
+            per_device_eval_batch_size = self.args.per_device_train_batch_size,
             learning_rate = self.args.learning_rate,
             save_strategy = 'epoch',
             logging_steps = 30,
             evaluation_strategy = "epoch",  
-            logging_dir='./logs',
+            logging_dir = './logs',
             load_best_model_at_end=True,
             do_eval = True,
-            fp16 = True
         )
+        if self.args.use_wandb:
+            training_args.report_to = ["wandb"]
+            training_args.run_name = "default"
+
 
         trainer = Trainer(
             model=self.model,
             args=training_args,
-            train_dataset=self.train_dataset,
-            eval_dataset=self.valid_dataset,
+            train_dataset = self.train_dataset,
+            eval_dataset = self.valid_dataset,
             compute_metrics = compute_metrics,
             data_collator = data_collator
             
@@ -238,7 +238,6 @@ class Dense_embedding_retrieval:
             else:
                 self.indexer = quantizer  # 클러스터 수가 0일 경우 flat index 사용
                 self.indexer.add(embeddings)
-                # 인덱서 저장
                 faiss.write_index(self.indexer, indexer_path)
                 print("Faiss Indexer Saved.")
 
@@ -264,3 +263,12 @@ class Dense_embedding_retrieval:
             results.append(query_results)
 
         return results 
+    
+    def start_wandb(self):
+        os.system("rm -rf /root/.cache/wandb")
+        os.system("rm -rf /root/.config/wandb")
+        os.system("rm -rf /root/.netrc")
+        
+        # WandB API 키 설정 (여러분의 API 키를 넣어주시면 됩니다)
+        os.environ["WANDB_API_KEY"] = "ea26fff0d932bc74bbfad9fd507b292c67444c02"
+        wandb.init(project='Dense_embedding_retrieval')
