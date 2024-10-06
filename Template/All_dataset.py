@@ -288,3 +288,47 @@ class prepare_dataset:
                         truncation=True, return_tensors='pt')
         return query_vectors
 
+
+# ---------------------Generative based MRC 모델을 위한 데이터셋을 설정하는 부분입니다 -----------------
+
+
+    def generative_MRC_preprocess_function(self, examples):
+        tokenizer = self.tokenizer
+        inputs = [f'question: {q}  context: {c}' for q, c in zip(examples['question'], examples['context'])]
+        targets = [f'{a["text"][0]}' for a in examples['answers']]
+        model_inputs = tokenizer(inputs, max_length = self.args.max_source_length, padding = self.args.padding, truncation = True, return_tensors='pt')
+
+        # Setup the tokenizer for targets
+        with tokenizer.as_target_tokenizer(): # context 문장과 target 문장의 인코딩이 다를 수 있기 때문에 이렇게 함
+            labels = tokenizer(targets, max_length = self.max_target_length, padding = self.padding, truncation=True, return_tensors='pt')
+
+        model_inputs["labels"] = labels["input_ids"]
+        model_inputs["labels"][model_inputs["labels"] == tokenizer.pad_token_id] = -100
+        model_inputs["example_id"] = []
+        for i in range(len(model_inputs["labels"])):
+            model_inputs["example_id"].append(examples["id"][i])
+        return model_inputs
+    
+    def get_generative_MRC_train_dataset(self):
+        col_names = self.dataset['train'].column_names
+        train_dataset = self.dataset['train']
+        train_dataset = train_dataset.map(
+            self.generative_MRC_preprocess_function,
+            batched = True,
+            num_proc = self.args.preprocessing_num_workers,
+            remove_columns = col_names,
+            load_from_cache_file = False # 이전에 데이터셋에 대해 전처리를 수행한 결과가 로컬 캐시에 저장되어 있으면,
+                                         # 다시 전처리 과정을 거치지 않고 그 캐시 파일을 불러옵니다.
+        )
+        return train_dataset
+    
+    def get_generative_MRC_valid_dataset(self):
+        col_names = self.dataset['validation'].column_names
+        eval_dataset = self.dataset['validation']
+        eval_dataset = eval_dataset.map(
+            self.generative_MRC_preprocess_function,
+            batched = True,
+            num_proc = self.args.preprocessing_num_workers,
+            load_from_cache_file = False
+        )
+        return eval_dataset

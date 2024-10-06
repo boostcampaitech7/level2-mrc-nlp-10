@@ -16,7 +16,7 @@ import gc
 import random
 from tqdm import tqdm
 import wandb
-
+from arguments import Dense_search_retrieval_arguments, TF_IDF_retrieval_arguments
 torch.manual_seed(2024)
 torch.cuda.manual_seed(2024)
 np.random.seed(2024)
@@ -24,11 +24,11 @@ random.seed(2024)
 
 
 class TF_IDFSearch:
-    def __init__(self, args):
-        self.args = args
+    def __init__(self):
+        self.args = TF_IDF_retrieval_arguments()
         
         # 데이터셋 로드
-        self.dataset = load_from_disk(args.data_route)
+        self.dataset = load_from_disk(self.args.data_route)
         self.corpus = list(set(self.dataset['train']['context'] + self.dataset['validation']['context']))
         
         # TF-IDF 벡터 생성
@@ -100,14 +100,13 @@ import torch.nn.functional as F
 import transformers
 
 class Dense_embedding_retrieval_model(PreTrainedModel):
-    def __init__(self, args):
-        config = transformers.AutoConfig.from_pretrained(args.model_name)
+    def __init__(self):
+        self.args = Dense_search_retrieval_arguments
+        config = transformers.AutoConfig.from_pretrained(self.args.model_name)
         super(Dense_embedding_retrieval_model, self).__init__(config)
-        model_name = args.model_name
-        self.args = args
+        model_name = self.args.model_name
         self.p_model = transformers.AutoModel.from_pretrained(model_name)
         self.q_model = transformers.AutoModel.from_pretrained(model_name)
-        wandb = self.args.use_wandb
 
     def forward(self, p_input_ids, p_attention_mask, p_token_type_ids,
                 q_input_ids, q_attention_mask, q_token_type_ids, labels):
@@ -142,26 +141,26 @@ class Dense_embedding_retrieval_model(PreTrainedModel):
             'output' : sim_scores
         }
 
-def compute_metrics(eval_preds):
-
-    logits, labels = eval_preds  
-
-    # logits에서 가장 높은 값을 가진 인덱스를 예측값으로 사용
-    logits = torch.tensor(logits, dtype = torch.long)
-    predictions = torch.argmax(logits, dim=1).detach().cpu().numpy()
-    
-    accuracy = accuracy_score(labels, predictions)  
-    f1 = f1_score(labels, predictions, average='weighted') 
-
-    return {'accuracy' : accuracy, 'f1' : f1 }
 
 class Dense_embedding_retrieval:
-    def __init__(self, args):
+    def __init__(self):
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        self.args = args
-        self.model = Dense_embedding_retrieval_model(self.args)
+        self.args = Dense_search_retrieval_arguments()
+        self.model = Dense_embedding_retrieval_model()
         if self.args.use_wandb:
             self.start_wandb()
+    def compute_metrics(eval_preds):
+
+        logits, labels = eval_preds  
+
+        # logits에서 가장 높은 값을 가진 인덱스를 예측값으로 사용
+        logits = torch.tensor(logits, dtype = torch.long)
+        predictions = torch.argmax(logits, dim=1).detach().cpu().numpy()
+        
+        accuracy = accuracy_score(labels, predictions)  
+        f1 = f1_score(labels, predictions, average='weighted') 
+
+        return {'accuracy' : accuracy, 'f1' : f1 }
 
     def train(self):
         self.datas = prepare_dataset(self.args)
@@ -171,7 +170,7 @@ class Dense_embedding_retrieval:
         torch.cuda.empty_cache()
         data_collator = DefaultDataCollator()
         training_args = TrainingArguments(
-            output_dir='./results',
+            output_dir = './Dense_embedding_retrieval_results',
             num_train_epochs = self.args.num_train_epochs,
             per_device_train_batch_size = self.args.per_device_train_batch_size,
             per_device_eval_batch_size = self.args.per_device_train_batch_size,
@@ -182,6 +181,7 @@ class Dense_embedding_retrieval:
             logging_dir = './logs',
             load_best_model_at_end=True,
             do_eval = True,
+            weight_decay = 0.01,
         )
         if self.args.use_wandb:
             training_args.report_to = ["wandb"]
@@ -189,11 +189,11 @@ class Dense_embedding_retrieval:
 
 
         trainer = Trainer(
-            model=self.model,
-            args=training_args,
+            model = self.model,
+            args = training_args,
             train_dataset = self.train_dataset,
             eval_dataset = self.valid_dataset,
-            compute_metrics = compute_metrics,
+            compute_metrics = self.compute_metrics,
             data_collator = data_collator
             
         )
