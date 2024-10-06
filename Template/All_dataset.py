@@ -47,7 +47,9 @@ class prepare_dataset:
         self.args = args
         self.dataset = load_from_disk(args.data_route)
         self.tokenizer = transformers.AutoTokenizer.from_pretrained(args.model_name, trust_remote_code = True)
-        
+
+    def get_pure_dataset(self):
+        return load_from_disk(self.args.data_route)
 
     def prepare_train_features(self, examples):
         # truncation과 padding(length가 짧을때만)을 통해 toknization을 진행하며, stride를 이용하여 overflow를 유지합니다.
