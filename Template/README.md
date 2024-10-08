@@ -8,7 +8,7 @@
 (Generation_based_MRC_arguments, 
 Extraction_based_MRC_arguments,
 Dense_search_retrieval_arguments, 
-TF_IDF_retrieval_arguments)
+TF_IDF_retrieval_arguments 들을 치시고 찾으시면 금방 나올거에요.)
 
 ### 3. 바꿀 부분을 바꾼다. (모델 small 모델이고 에폭도 낮습니다. 바꿔야됨)
 
