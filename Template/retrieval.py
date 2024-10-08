@@ -1,6 +1,7 @@
 from sklearn.metrics import accuracy_score, f1_score
 import numpy as np
 import faiss
+import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 from datasets import load_from_disk
 import os
@@ -16,6 +17,7 @@ import gc
 import random
 from tqdm import tqdm
 import wandb
+
 from arguments import Dense_search_retrieval_arguments, TF_IDF_retrieval_arguments
 torch.manual_seed(2024)
 torch.cuda.manual_seed(2024)
@@ -72,6 +74,8 @@ class TF_IDFSearch:
 
     def search_query(self):
         self.test_dataset = load_from_disk(self.args.test_data_route)
+        if not os.path.exists('retrieval_results'):
+            os.makedirs('retrieval_results')
         queries = self.test_dataset['validation']['question']
         k = self.args.k
         # 쿼리 벡터 생성
@@ -81,16 +85,23 @@ class TF_IDFSearch:
         distances, indices = self.index.search(query_vector, k)
 
         # 검색 결과 저장
-        results = []
+        self.tfidf_results = []
         for i in range(len(queries)):  # 모든 쿼리에 대해 반복
             query_results = []
             for j in range(k):
                 doc = self.corpus[indices[i][j]]  # 해당 쿼리의 상위 K 문서
                 distance = distances[i][j]  # 해당 문서와의 거리
                 query_results.append((doc, distance))
-            results.append(query_results)
+            self.tfidf_results.append(query_results)
 
-        return results
+        print('가장 가까운 passage를 id, question, context, distance 형태로 내보냅니다.')
+        print('top k개는 model.tfidf_results를 통해 확인할 수 있습니다.')
+        pd.DataFrame({'id' : self.test_dataset['validation']['id'],
+                      'question' : self.test_dataset['validation']['question'],
+                      'context' : [item[0][0] for item in self.tfidf_results],
+                      'distance' : [item[0][1] for item in self.tfidf_results]}).to_csv(f'retrieval_results/TF-IDF_retrieval.csv',
+                                                                                         index = False)
+
 
 
 # -------------------------------아래는 Dense Embedding을 사용하는 부분입니다.-----------------------------------------
@@ -149,7 +160,8 @@ class Dense_embedding_retrieval:
         self.model = Dense_embedding_retrieval_model()
         if self.args.use_wandb:
             self.start_wandb()
-    def compute_metrics(eval_preds):
+
+    def compute_metrics(self,eval_preds):
 
         logits, labels = eval_preds  
 
@@ -170,7 +182,7 @@ class Dense_embedding_retrieval:
         torch.cuda.empty_cache()
         data_collator = DefaultDataCollator()
         training_args = TrainingArguments(
-            output_dir = './Dense_embedding_retrieval_results',
+            output_dir = './Dense_embedding_retrieval_model_results',
             num_train_epochs = self.args.num_train_epochs,
             per_device_train_batch_size = self.args.per_device_train_batch_size,
             per_device_eval_batch_size = self.args.per_device_train_batch_size,
@@ -179,7 +191,7 @@ class Dense_embedding_retrieval:
             logging_steps = 30,
             evaluation_strategy = "epoch",  
             logging_dir = './logs',
-            load_best_model_at_end=True,
+            load_best_model_at_end = True,
             do_eval = True,
             weight_decay = 0.01,
         )
@@ -245,14 +257,18 @@ class Dense_embedding_retrieval:
         top_k = self.args.top_k
         self.passages = self.datas.get_dense_faiss_corpus()
         self.model.eval()
+
+        if not os.path.exists('retrieval_results'):
+            os.makedirs('retrieval_results')
+
         with torch.no_grad():
-            inputs = self.datas.get_dense_queries_for_search()  
+            test_dataset, inputs = self.datas.get_dense_queries_for_search()  
             inputs = {key: value.to(self.device) for key, value in inputs.items()} 
             query_embeddings = self.model.q_model(**inputs).pooler_output.cpu().numpy() 
 
         distances, indices = self.indexer.search(query_embeddings, top_k)  
 
-        results = []
+        self.dense_results = []
         print('모든쿼리에 대해 탑 k를 찾습니당')
         for i in tqdm(range(query_embeddings.shape[0])):  # 모든 쿼리에 대해
             query_results = []
@@ -260,15 +276,23 @@ class Dense_embedding_retrieval:
                 doc = self.passages[indices[i][j]]  # 상위 K 문서
                 distance = distances[i][j]  # 해당 문서와의 거리
                 query_results.append((doc, distance))
-            results.append(query_results)
+            self.dense_results.append(query_results)
 
-        return results 
-    
+        print('가장 가까운 passage를 id, question, context, distance 형태로 내보냅니다.')
+        print('top k개는 model.dense_results를 통해 확인할 수 있습니다.')
+        pd.DataFrame({'id' : test_dataset['validation']['id'],
+                      'question' : test_dataset['validation']['question'],
+                      'context' : [item[0][0] for item in self.dense_results],
+                      'distance' : [item[0][1] for item in self.dense_results]}).to_csv(f"retrieval_results/dense_retrieval_{self.args.model_name.split('/')[-1]}.csv", 
+                                                                                        index = False)
+
+        
+
     def start_wandb(self):
         os.system("rm -rf /root/.cache/wandb")
         os.system("rm -rf /root/.config/wandb")
         os.system("rm -rf /root/.netrc")
         
         # WandB API 키 설정 (여러분의 API 키를 넣어주시면 됩니다)
-        os.environ["WANDB_API_KEY"] = "ea26fff0d932bc74bbfad9fd507b292c67444c02"
+        os.environ["WANDB_API_KEY"] = self.args.wandb_key
         wandb.init(project='Dense_embedding_retrieval')

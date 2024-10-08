@@ -3,9 +3,10 @@ import torch.nn as nn
 import os
 import transformers
 import numpy as np
-from datasets import load_from_disk
+from datasets import load_from_disk, Dataset
 from torch.utils.data import TensorDataset
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset as torchDataset # datasets의 Class Dataset과
+# torch.utils.data의 Dataset이 겹쳐 하나는 alias로 설정했습니다.
 import torch
 import random
 
@@ -13,7 +14,7 @@ import random
 #  -----------------Dense Embedding을 위해 Dataset클래스를 정의하는 부분입니다------------------------------------------------------
 
 
-class DenseDataset(Dataset):
+class DenseDataset(torchDataset):
     def __init__(self, p_input_ids, p_attention_mask, p_token_type_ids, q_input_ids = None,
                   q_attention_mask = None, q_token_type_ids = None, labels = None):
         self.p_input_ids = p_input_ids
@@ -45,8 +46,8 @@ class DenseDataset(Dataset):
 class prepare_dataset:
     def __init__(self, args):
         self.args = args
-        self.dataset = load_from_disk(args.data_route)
-        self.tokenizer = transformers.AutoTokenizer.from_pretrained(args.model_name, trust_remote_code = True)
+        self.dataset = load_from_disk(self.args.data_route)
+        self.tokenizer = transformers.AutoTokenizer.from_pretrained(self.args.model_name, trust_remote_code = True)
 
     def get_pure_dataset(self):
         return load_from_disk(self.args.data_route)
@@ -177,10 +178,25 @@ class prepare_dataset:
             batched = True,
             num_proc = self.args.num_proc,
             remove_columns = column_names,
-            load_from_cache_file = True,
+            load_from_cache_file = False,
         )
         return eval_dataset
     
+    def get_mrc_test_dataset(self):
+        test_df = pd.read_csv(self.args.retrieval_results_route)
+        test_dataset = Dataset.from_pandas(test_df)
+        column_names = test_dataset.column_names
+        eval_examples = test_dataset
+
+        eval_dataset = test_dataset.map(
+            self.prepare_validation_features,
+            batched = True,
+            num_proc = self.args.num_proc,
+            remove_columns = column_names,
+            load_from_cache_file = False,
+        )
+        return eval_dataset, eval_examples
+
 # -----------------------------------Dense Embedding을 위한 데이터셋을 선언하는 부분입니다--------------------------------------------------------
 
 
@@ -286,7 +302,7 @@ class prepare_dataset:
         test_dataset = load_from_disk(self.args.test_data_route)
         query_vectors = self.tokenizer(test_dataset['validation']['question'], padding='max_length', 
                         truncation=True, return_tensors='pt')
-        return query_vectors
+        return test_dataset, query_vectors
 
 
 # ---------------------Generative based MRC 모델을 위한 데이터셋을 설정하는 부분입니다 -----------------
@@ -300,7 +316,7 @@ class prepare_dataset:
 
         # Setup the tokenizer for targets
         with tokenizer.as_target_tokenizer(): # context 문장과 target 문장의 인코딩이 다를 수 있기 때문에 이렇게 함
-            labels = tokenizer(targets, max_length = self.max_target_length, padding = self.padding, truncation=True, return_tensors='pt')
+            labels = tokenizer(targets, max_length = self.args.max_target_length, padding = self.args.padding, truncation=True, return_tensors='pt')
 
         model_inputs["labels"] = labels["input_ids"]
         model_inputs["labels"][model_inputs["labels"] == tokenizer.pad_token_id] = -100
@@ -332,3 +348,7 @@ class prepare_dataset:
             load_from_cache_file = False
         )
         return eval_dataset
+    
+    def get_generative_MRC_test_dataset(self):
+        test_dataset = pd.read_csv(self.args.retrieval_results_route).reset_index(drop = True)
+        return test_dataset

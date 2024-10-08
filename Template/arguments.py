@@ -22,6 +22,7 @@ class TF_IDF_retrieval_arguments:
         metadata = {'help' : 'faiss 클러스터를 몇개로 할 지 정합니다.'}
     )
 
+#  ------------------------------------------------------------------
 
 @dataclass
 class Dense_search_retrieval_arguments:
@@ -69,6 +70,13 @@ class Dense_search_retrieval_arguments:
         default = True,
         metadata = {'help' : 'wandb를 '}
     )
+    wandb_key : str = field(
+        default = "ea26fff0d932bc74bbfad9fd507b292c67444c02",
+        metadata = {'help' : 'wandb API 키 입니다.'}
+    )
+
+#  ------------------------------------------------------------------
+
 
 @dataclass
 class Extraction_based_MRC_arguments:
@@ -88,14 +96,14 @@ class Extraction_based_MRC_arguments:
         default = 'klue/roberta-small',
         metadata = {'help' : '훈련에 사용할 모델을 정의합니다.'}
     )
-    # max_train_samples : int = field(
-    #     default = 16,
-    #     metadata = {'help' : 'train 배치사이즈를 정합니다.'}
-    # )
-    # max_val_samples : int = field(
-    #     default = 16,
-    #     metadata = {'help' : 'valid 배치사이즈르 정합니다.'}
-    # )
+    retrieval_results_route : Optional[str] = field(
+        default = '/data/ephemeral/home/practice/retrieval_results/TF-IDF_retrieval.csv',
+        metadata = {'help' : 'retrieval을 통해 얻어낸 passage의 경로입니다.'}
+    )
+    output_dir : Optional[str] = field(
+        default = "./Extraction_based_MRC_outputs",
+        metadata = {'help' : 'Extraction model의 checkpoint ouptut 경로입니다.'}
+    )
     preprocessing_num_workers : int = field(
         default = 4,
         metadata = {'help' : '프로세스 몇개 쓸건지입니다. 높으면 빠르긴한데 메모리를 많이씁니다.'}
@@ -105,7 +113,7 @@ class Extraction_based_MRC_arguments:
         metadata = {'help': "Dense embedding 모델의 배치사이즈입니다."}
     )
     num_train_epochs : int = field(
-        default = 5,
+        default = 2,
         metadata = {'help' : '에폭을 정합니다.'}
     )
     n_best_size : int = field(
@@ -119,6 +127,10 @@ class Extraction_based_MRC_arguments:
     data_route: Optional[str] = field(
         default = '/data/ephemeral/home/level2-mrc-nlp-10/data/train_dataset/',
         metadata = {'help' :"데이터셋 위치입니다."},
+    )
+    test_data_route : Optional[str] = field(
+        default = '/data/ephemeral/home/level2-mrc-nlp-10/data/test_dataset/',
+        metadata = {'help' : '테스트 데이터셋 위치입니다.'}
     )
     model_name: str = field(
         default = 'klue/bert-base',
@@ -144,12 +156,46 @@ class Extraction_based_MRC_arguments:
         default = True,
         metadata = {'help' : 'wandb를 '}
     )
+    wandb_key : str = field(
+        default = "ea26fff0d932bc74bbfad9fd507b292c67444c02",
+        metadata = {'help' : 'wandb API 키 입니다.'}
+    )
     learning_rate : float = field(
         default = 3e-5,
         metadata = {'help' : '러닝레이트입니다.'}
     )
+
+
+#  ------------------------------------------------------------------
+
+
 @dataclass
-class generation_based_MRC_arguments:
+class Generation_based_MRC_arguments:
+
+    data_route : Optional[str] = field(
+        default = '/data/ephemeral/home/level2-mrc-nlp-10/data/train_dataset/',
+        metadata = {'help' : "훈련 데이터셋 위치입니다."},
+    )
+    test_data_route : Optional[str] = field(
+        default = '/data/ephemeral/home/level2-mrc-nlp-10/data/test_dataset/',
+        metadata = {'help' : '테스트 데이터셋 위치입니다.'}
+    )
+    retrieval_results_route : Optional[str] = field(
+        default = '/data/ephemeral/home/practice/retrieval_results/TF-IDF_retrieval.csv',
+        metadata = {'help' : 'retrieval을 통해 얻어낸 passage의 경로입니다.'}
+    )
+    use_wandb : bool = field(
+        default = True,
+        metadata = {'help' : 'wandb를 사용할 지 여부입니다. 사용할거면 본인 API 키를 모델안에 넣어주세요.'}
+    )
+    wandb_key : str = field(
+        default = "ea26fff0d932bc74bbfad9fd507b292c67444c02",
+        metadata = {'help' : 'wandb API 키 입니다.'}
+    )
+    model_name : str = field(
+        default = "paust/pko-t5-small",
+        metadata = {'help' : '사용할 모델 이름입니다.'}
+    )
     max_source_length: int = field(
         default = 384,
         metadata={'help': "소스 문장의 최대 길이입니다."}
@@ -182,6 +228,10 @@ class generation_based_MRC_arguments:
         default=1e-3,
         metadata = {'help': "학습률(learning rate)입니다."}
     )
+    num_train_epochs : int = field(
+        default = 3,
+        metadata = {'help' : '에폭을 정합니다.'}
+    )
 
 
 
@@ -189,11 +239,8 @@ class generation_based_MRC_arguments:
 
 
 
-    # ------------------------------------------------------------------
+    # ----------이 아래는 util_qa.py, trainer_qa.py를 쓰기 위한 arguments들입니다.------------------
 
-
-    from dataclasses import dataclass, field
-from typing import Optional
 
 
 @dataclass
