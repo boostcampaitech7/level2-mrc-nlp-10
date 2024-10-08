@@ -7,14 +7,14 @@ Dense_search_retrieval_arguments, TF_IDF_retrieval_arguments)
 ### 3. 바꿀 부분을 바꾼다. (모델 small 모델이고 에폭도 낮습니다. 바꿔야됨)
 
 ### retrieval model은 어떻게 쓰나요 ?
-'''python
+
 model = 뫄뫄()
 model.train() (dense retrieval 사용시)
 model.build_faiss()
 model.search()
-'''
+
 ### MRC model은 어떻게 쓰나요 ?
-'''python
+
 model = 뫄뫄()
 model.train()
 model.inference()
