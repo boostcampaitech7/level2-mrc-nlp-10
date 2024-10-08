@@ -37,3 +37,6 @@ TF_IDF_retrieval_arguments 들을 치시고 찾으시면 금방 나올거에요.
 Dense retrieval은 question embedding 모델과 context embedding 모델 두개를 불러오기 때문에 OOM이 자주 발생합니다.
 Dense retrieval 모델이 가끔 accuracy가 24퍼를 벗어나지 못하는 local minima를 갈 때가 있는데 그냥 시드 바꾸고 다시 돌리시면 됩니다. (가끔은 그냥 다시 돌려도 됨)
 Extraction MRC 모델이 훈련은 잘 되는데 val_loss가 No log가 뜹니다.. ㅠㅠ 아주 오랜시간 고쳐보려 노력했으나 실패했습니다
+
+### Note
+Cross validation으로도 훈련방식을 바꿀 수 있는데 그건 eda좀 하고 해보겠습니다
