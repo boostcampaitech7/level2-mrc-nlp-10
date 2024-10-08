@@ -8,16 +8,20 @@ Dense_search_retrieval_arguments, TF_IDF_retrieval_arguments)
 
 ### retrieval model은 어떻게 쓰나요 ?
 
+```python
 model = 뫄뫄()
 model.train() (dense retrieval 사용시)
 model.build_faiss()
 model.search()
+```
 
 ### MRC model은 어떻게 쓰나요 ?
 
+```python
 model = 뫄뫄()
 model.train()
 model.inference()
+```
 
 ### ** 주의점 **
 Dense retrieval은 question embedding 모델과 context embedding 모델 두개를 불러오기 때문에 OOM이 자주 발생합니다.
