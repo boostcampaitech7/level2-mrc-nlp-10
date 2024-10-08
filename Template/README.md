@@ -2,25 +2,33 @@
 쓰는법
 ### 1. howtouse를 본다
 ### 2. arguments.py를 드가서 바꿀 부분을 고른다. 
-(Generation_based_MRC_arguments, Extraction_based_MRC_arguments,
-Dense_search_retrieval_arguments, TF_IDF_retrieval_arguments)
+
+(Generation_based_MRC_arguments, 
+Extraction_based_MRC_arguments,
+Dense_search_retrieval_arguments, 
+TF_IDF_retrieval_arguments)
+
 ### 3. 바꿀 부분을 바꾼다. (모델 small 모델이고 에폭도 낮습니다. 바꿔야됨)
 
 ### retrieval model은 어떻게 쓰나요 ?
 
 ```python
-model = 뫄뫄()
-model.train() (dense retrieval 사용시)
-model.build_faiss()
-model.search()
+
+ model = 뫄뫄()
+ model.train() (dense retrieval 사용시)
+ model.build_faiss()
+ model.search()
+
 ```
 
 ### MRC model은 어떻게 쓰나요 ?
 
 ```python
-model = 뫄뫄()
-model.train()
-model.inference()
+
+ model = 뫄뫄()
+ model.train()
+ model.inference()
+
 ```
 
 ### ** 주의점 **
