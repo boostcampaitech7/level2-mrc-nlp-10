@@ -3,6 +3,7 @@
 ## 쓰는법
 ### 1. howtouse를 본다
 ### 2. arguments.py를 드가서 바꿀 부분을 고른다. 
+(argument들이 정리도 안돼있고 개판이라 ctrl+f / command+f로 찾아서 바꾸셔야합니다 ㅎㅎ;;)
 
 (Generation_based_MRC_arguments, 
 Extraction_based_MRC_arguments,
