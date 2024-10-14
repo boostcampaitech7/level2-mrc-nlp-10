@@ -17,7 +17,7 @@ TF_IDF_retrieval_arguments 들을 치시고 찾으시면 금방 나올거에요.
 
 retrieval을 선언하고 build_faiss()
 retrieval_model.search_query() 또는 retrieval_model.search_query_faiss()를 하면 test데이터셋에 대한 retrieval 결과가 나옵니다.
-(제가 일주일동안 안풀린다고 징징댔던 문제는 faiss indexer을 쓰면 리트리버의 결과가 이상하게 나오는 부분이었습니다.)
+(제가 일주일동안 안풀린다고 징징댔던 문제는 faiss indexer을 쓰면 리트리버의 결과가 이상하게 나오는 부분이었습니다. 아직까지도 faiss indexer을 통한 리트리버는 문서를 잘 못찾습니다 ...)
 이를 mrcmodel.inference(retrieval_result)에 넣으면 predict_result 폴더에 json 파일이 생성됩니다.
 
 
