@@ -14,7 +14,7 @@ class TF_IDF_retrieval_arguments:
         metadata = {'help' : '테스트 데이터셋 위치입니다.'}
     )
     k : int = field(
-        default = 3,
+        default = 20,
         metadata = {'help' : '비슷한 문서 중 몇개를 내보낼지를 결정합니다.'}
     )
     num_clusters : int = field(
@@ -60,7 +60,7 @@ class Dense_search_retrieval_arguments:
         metadata = {'help' : '위키데이터의 경로입니다.'}
     )
     num_neg : int = field(
-        default = 10,
+        default = 15,
         metadata = {'help': "네거티브 샘플링 몇개할건지를 고릅니다."}
     )
     num_train_epochs : int = field(
@@ -84,7 +84,7 @@ class Dense_search_retrieval_arguments:
         metadata = {'help' : 'faiss 클러스터를 몇개로 할 지 정합니다.'}
     )
     top_k : int = field(
-        default = 3,
+        default = 20,
         metadata = {'help' : '몇개의 후보를 faiss indexer에서 뽑을건지 정합니다.'}
     )
     use_wandb : bool = field(
@@ -106,7 +106,7 @@ class Extraction_based_MRC_arguments:
         metadata = {'help' : '질문과 컨텍스트, special 토큰을 합한 문자열의 최대 길이입니다.'}
     )
     pad_to_max_length : bool = field(
-        default = True,
+        default = False,
         metadata = {'help' : '최대 길이의 문장을 기준으로 패딩을 수행합니다.'}
     )
     doc_stride : int = field(
@@ -117,6 +117,9 @@ class Extraction_based_MRC_arguments:
         default = "klue/bert-base",
         metadata = {'help' : '훈련에 사용할 모델을 정의합니다.'}
     )
+    model_path : str = field(
+        default = '/data/ephemeral/home/practice/Template/Extraction_based_MRC_outputs'
+    )
     retrieval_results_route : Optional[str] = field(
         default = '/data/ephemeral/home/practice/retrieval_results/TF-IDF_retrieval.csv',
         metadata = {'help' : 'retrieval을 통해 얻어낸 passage의 경로입니다.'}
@@ -126,19 +129,23 @@ class Extraction_based_MRC_arguments:
         metadata = {'help' : 'Extraction model의 checkpoint ouptut 경로입니다.'}
     )
     preprocessing_num_workers : int = field(
-        default = 1,
+        default = None,
         metadata = {'help' : '프로세스 몇개 쓸건지입니다. 높으면 빠르긴한데 메모리를 많이씁니다.'}
     )
     per_device_train_batch_size : int = field(
-        default = 16,
-        metadata = {'help': "Dense embedding 모델의 배치사이즈입니다."}
+        default = 8,
+        metadata = {'help': "Extraction_base 모델의 배치사이즈입니다."}
+    )
+    per_device_eval_batch_size : int = field(
+        default = 8,
+        metadata = {'help': "Extraction_base 모델의 배치사이즈입니다."}
     )
     num_train_epochs : int = field(
-        default = 2,
+        default = 5,
         metadata = {'help' : '에폭을 정합니다.'}
     )
     n_best_size : int = field(
-        default = 20,
+        default = 40,
         metadata = {'help' : '가능한 답변의 개수를 설정합니다.'}
     )
     max_answer_length : int = field(
@@ -152,10 +159,6 @@ class Extraction_based_MRC_arguments:
     test_data_route : Optional[str] = field(
         default = '/data/ephemeral/home/level2-mrc-nlp-10/data/test_dataset/',
         metadata = {'help' : '테스트 데이터셋 위치입니다.'}
-    )
-    max_seq_length: int = field(
-        default = 384,
-        metadata = {'help' : 'context길이를 얼마나 가져갈건지를 정하는 수'}
     )
     doc_stride : int = field(
         default = 128,
@@ -200,6 +203,10 @@ class Generation_based_MRC_arguments:
     retrieval_results_route : Optional[str] = field(
         default = '/data/ephemeral/home/practice/retrieval_results/TF-IDF_retrieval.csv',
         metadata = {'help' : 'retrieval을 통해 얻어낸 passage의 경로입니다.'}
+    )
+    output_dir : Optional[str] = field(
+        default = "./Generation_based_MRC_outputs",
+        metadata = {'help' : 'Generation base mrc model의 checkpoint ouptut 경로입니다.'}
     )
     use_wandb : bool = field(
         default = True,

@@ -110,7 +110,5 @@ class QuestionAnsweringTrainer(Trainer):
         print('post_process_function을 실행합니다.')
         predictions = self.post_process_function(
             test_examples, test_dataset, output.predictions, self.args
-            
         )
-        
         return predictions

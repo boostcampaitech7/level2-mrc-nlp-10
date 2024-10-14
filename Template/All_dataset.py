@@ -139,9 +139,11 @@ class prepare_dataset:
 
         return tokenized_examples
 
-    def get_mrc_train_dataset(self):
-        column_names = self.dataset["train"].column_names
-        train_dataset = self.dataset['train'].map(
+    def get_mrc_train_dataset(self, train_dataset = None):
+        if train_dataset == None:
+            train_dataset = self.dataset['train']
+        column_names = train_dataset.column_names
+        train_dataset = train_dataset.map(
             self.prepare_train_features,
             batched = True,
             num_proc = self.args.num_proc,
@@ -188,11 +190,12 @@ class prepare_dataset:
 
         return tokenized_examples
     
-    def get_mrc_eval_dataset(self):
-        column_names = self.dataset["validation"].column_names
-        eval_exmaples = self.dataset['validation']
-        eval_dataset = eval_exmaples.map(
-            self.prepare_train_features,
+    def get_mrc_eval_dataset(self, eval_dataset = None):
+        if eval_dataset == None:
+            eval_dataset = self.dataset['validation']
+        column_names = eval_dataset.column_names
+        eval_dataset = eval_dataset.map(
+            self.prepare_train_features, # epoch 도중 validation을 할 수 있도록 train함수로 매핑
             batched = True,
             num_proc = self.args.num_proc,
             remove_columns = column_names,
@@ -200,18 +203,23 @@ class prepare_dataset:
         )
         return eval_dataset
     
+    
     def get_mrc_test_dataset(self, test_dataset):
         column_names = test_dataset['validation'].column_names
-        eval_examples = test_dataset['validation']
-
-        eval_dataset = test_dataset.map(
+        if 'validation' in test_dataset.keys():
+            test_examples = test_dataset['validation']
+        else:
+            test_examples = test_dataset
+        test_dataset = test_dataset.map(
             self.prepare_validation_features,
             batched = True,
             num_proc = self.args.num_proc,
             remove_columns = column_names,
             load_from_cache_file = False,
         )
-        return eval_dataset, eval_examples
+        if 'validation' in test_dataset.keys():
+            test_dataset = test_dataset['validation']
+        return test_dataset, test_examples
 
 # -----------------------------------Dense Embedding을 위한 데이터셋을 선언하는 부분입니다--------------------------------------------------------
 

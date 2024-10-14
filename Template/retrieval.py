@@ -39,6 +39,7 @@ class TF_IDFSearch:
         self.contexts = list(
             dict.fromkeys([v['text'] for v in wiki.values()])
         )
+        print(len(self.contexts))
 
         self.tfidfv = TfidfVectorizer(
             tokenizer = tokenize_fn, ngram_range = (1, 2), max_features = 50000)
@@ -73,48 +74,63 @@ class TF_IDFSearch:
                 pickle.dump(self.tfidfv, file)
             print('임베딩을 피클형태로 저장했습니다.')
 
-    def build_faiss(self,):
+    def build_faiss(self):
         num_clusters = self.args.num_clusters
         indexer_name = f"TFIDF_faiss_clusters{num_clusters}.index"
         indexer_path = os.path.join(self.args.data_path, indexer_name)
+        
         if os.path.isfile(indexer_path):
             print("Faiss Indexer을 로드했습니다.")
             self.indexer = faiss.read_index(indexer_path)
-        
         else:
             print('Faiss indexer을 만듭니다.')
             p_emb = self.p_embedding.astype(np.float32).toarray()
             emb_dim = p_emb.shape[-1]
 
-            num_clusters = num_clusters
-            quantizer = faiss.IndexFlatL2(emb_dim)
-
+            # FAISS IndexIVFScalarQuantizer 초기화
+            quantizer = faiss.IndexFlatL2(emb_dim)  # 벡터 차원을 전달
             self.indexer = faiss.IndexIVFScalarQuantizer(
-                quantizer, quantizer.d, num_clusters, faiss.METRIC_L2
+                quantizer, emb_dim, num_clusters, faiss.METRIC_L2
             )
 
+            # 훈련 및 추가
             self.indexer.train(p_emb)
             self.indexer.add(p_emb)
             faiss.write_index(self.indexer, indexer_path)
             print('Faiss Indexer을 저장했습니다.')
 
-            # 인덱서 저장
-            faiss.write_index(self.indexer, indexer_path)
-
     def get_relevant_doc_bulk_faiss(self, queries):
         k = self.args.k
         query_vecs = self.tfidfv.transform(queries)
-        assert (
-            np.sum(query_vecs) != 0
-        ), '쿼리에 있는 단어가 임베딩의 어느것과도 겹치지 않습니다. 이상한 단어일 가능성이 큽니다.'
+        
+        # 쿼리 벡터의 합을 확인하여 검색 불가능한 경우 처리
+        if np.sum(query_vecs) == 0:
+            raise ValueError('쿼리에 있는 단어가 임베딩과 일치하지 않습니다. 쿼리를 확인하세요.')
 
         q_embs = query_vecs.toarray().astype(np.float32)
-        print(f'쿼리당 {self.args.k}개의 문서를 faiss indexer을 통해 찾습니다.')
+        print(f'쿼리당 {k}개의 문서를 faiss indexer을 통해 찾습니다.')
+        
+        # 검색 수행
         D, I = self.indexer.search(q_embs, k)
 
         return D.tolist(), I.tolist()
+
     
-    def search_query(self):
+    def get_relevant_doc_bulk(self, query):
+        query_vec = self.tfidfv.transform(query)
+        k = self.args.k
+        result = query_vec * self.p_embedding.T
+        if not isinstance(result, np.ndarray):
+            result = result.toarray()
+        doc_scores = []
+        doc_indices = []
+        for i in range(result.shape[0]):
+            sorted_result = np.argsort(result[i, :])[::-1]
+            doc_scores.append(result[i, :][sorted_result].tolist()[:k])
+            doc_indices.append(sorted_result.tolist()[:k])
+        return doc_scores, doc_indices
+    
+    def search_query_faiss(self):
         test_dataset = load_from_disk(self.args.test_data_route)
         queries = test_dataset['validation']['question']
         total = []
@@ -144,8 +160,37 @@ class TF_IDFSearch:
         df = pd.DataFrame(total)
         datasets = DatasetDict({"validation": Dataset.from_pandas(df, features=f)})
         return datasets
-        
 
+    
+    def search_query(self):
+        test_dataset = load_from_disk(self.args.test_data_route)
+        queries = test_dataset['validation']['question']
+        total = []
+        doc_scores, doc_indices = self.get_relevant_doc_bulk(queries)
+        for idx, example in enumerate(
+            tqdm(test_dataset['validation'], desc = 'Sparse retrieval: ')
+        ):
+            tmp = {
+                'question' : example['question'],
+                'id' : example['id'],
+                'context' : ' '.join(
+                    [self.contexts[pid] for pid in doc_indices[idx]]
+                ),
+            }
+            if 'context' in example.keys() and 'answers' in example.keys():
+                tmp['answers'] = example['answers']
+            total.append(tmp)
+
+        f = Features(
+            {
+                "context": Value(dtype="string", id=None),
+                "id": Value(dtype="string", id=None),
+                "question": Value(dtype="string", id=None),
+            }
+        )
+        df = pd.DataFrame(total)
+        datasets = DatasetDict({"validation": Dataset.from_pandas(df, features=f)})
+        return datasets
 
 # -------------------------------아래는 Dense Embedding을 사용하는 부분입니다.-----------------------------------------
 
@@ -318,7 +363,7 @@ class Dense_embedding_retrieval:
                 faiss.write_index(self.indexer, indexer_path)
                 print("Faiss Indexer Saved.")
 
-    def search(self):
+    def search_faiss(self):
         top_k = self.args.top_k
         self.passages = self.contexts
         self.model.eval()

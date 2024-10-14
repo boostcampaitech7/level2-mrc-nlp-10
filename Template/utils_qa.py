@@ -13,19 +13,44 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """
+Pre-processing
 Post-processing utilities for question answering.
 """
 import collections
 import json
 import logging
 import os
-from typing import Optional, Tuple
+import random
+from typing import Any, Optional, Tuple
 
 import numpy as np
+import torch
+from arguments import DataTrainingArguments, ModelArguments
+from datasets import DatasetDict
 from tqdm.auto import tqdm
+from transformers import PreTrainedTokenizerFast, TrainingArguments, is_torch_available
+from transformers.trainer_utils import get_last_checkpoint
+
 
 
 logger = logging.getLogger(__name__)
+
+
+def set_seed(seed: int = 42):
+    """
+    seed 고정하는 함수 (random, numpy, torch)
+
+    Args:
+        seed (:obj:`int`): The seed to set.
+    """
+    random.seed(seed)
+    np.random.seed(seed)
+    if is_torch_available():
+        torch.manual_seed(seed)
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)  # if use multi-GPU
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
 
 
 def postprocess_qa_predictions(
@@ -40,6 +65,8 @@ def postprocess_qa_predictions(
     prefix: Optional[str] = None,
     is_world_process_zero: bool = True,
 ):
+
+
     """
     Post-processes : qa model의 prediction 값을 후처리하는 함수
     모델은 start logit과 end logit을 반환하기 때문에, 이를 기반으로 original text로 변경하는 후처리가 필요함
