@@ -4,8 +4,10 @@
 ### 1. howtouse를 본다
 ### 2. arguments.py를 드가서 바꿀 부분을 고른다. 
 본인이 사용할 경로로 지정하셔야 아마 경로 에러가 발생하지 않을겁니다 !!!!
-(argument들이 정리도 안돼있고 개판이라 ctrl+f / command+f로 찾아서 바꾸셔야합니다 ㅎㅎ;;)
+경로는 VScode 기준 현재 폴더에 우클릭 하면 경로 복사를 통해 쉽게 찾으실 수 있습니다.
+Wandb API key를 본인의 API key로 해주셔야 Wandb를 확인하실 수 있습니다.
 
+(argument들이 정리도 안돼있고 개판이라 ctrl+f / command+f로 찾아서 바꾸셔야합니다 ㅎㅎ;;)
 (Generation_based_MRC_arguments, 
 Extraction_based_MRC_arguments,
 Dense_search_retrieval_arguments, 
@@ -14,7 +16,8 @@ TF_IDF_retrieval_arguments 들을 치시고 찾으시면 금방 나올거에요.
 ### 3. 바꿀 부분을 바꾼다.
 
 retrieval을 선언하고 build_faiss()
-retrieval_model.search()를 하면 test데이터셋에 대한 retrieval 결과가 나옵니다.
+retrieval_model.search_query() 또는 retrieval_model.search_query_faiss()를 하면 test데이터셋에 대한 retrieval 결과가 나옵니다.
+(제가 일주일동안 안풀린다고 징징댔던 문제는 faiss indexer을 쓰면 리트리버의 결과가 이상하게 나오는 부분이었습니다.)
 이를 mrcmodel.inference(retrieval_result)에 넣으면 predict_result 폴더에 json 파일이 생성됩니다.
 
 

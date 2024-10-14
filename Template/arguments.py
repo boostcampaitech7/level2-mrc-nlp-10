@@ -118,7 +118,8 @@ class Extraction_based_MRC_arguments:
         metadata = {'help' : '훈련에 사용할 모델을 정의합니다.'}
     )
     model_path : str = field(
-        default = '/data/ephemeral/home/practice/Template/Extraction_based_MRC_outputs'
+        default = '/data/ephemeral/home/practice/Template/Extraction_based_MRC_outputs',
+        metadata = {'help' : 'Extraction_model의 훈련 결과를 어디에 저장할지 정합니다.'}
     )
     retrieval_results_route : Optional[str] = field(
         default = '/data/ephemeral/home/practice/retrieval_results/TF-IDF_retrieval.csv',

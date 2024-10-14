@@ -36,16 +36,28 @@ class Extraction_based_MRC:
     def load_model(self):
         
         self.training_args = TrainingArguments(
-            output_dir = self.args.output_dir,
+            output_dir = self.output_dir,
             do_train = False,
             do_eval = True,
             per_device_eval_batch_size = self.args.per_device_eval_batch_size,  
         )
         model_path = self.output_dir
-        checkpt = glob(model_path + '/checkpoint-*')[-1]
-        self.config = transformers.AutoConfig.from_pretrained(checkpt)
-        self.tokenizer = transformers.AutoTokenizer.from_pretrained(checkpt)
-        self.model = transformers.AutoModelForQuestionAnswering.from_pretrained(checkpt, config=self.config)
+        lastcheckpt = glob(model_path + '/checkpoint-*')[-1]
+    
+        trainer_state_file = os.path.join(lastcheckpt, 'trainer_state.json')
+        print('제일 마지막 checkpoint :',trainer_state_file)
+        if os.path.exists(trainer_state_file):
+            with open(trainer_state_file, 'r') as f:
+                trainer_state = json.load(f)
+                best_checkpoint = trainer_state.get('best_model_checkpoint', None)
+                print('best checkpoint :', best_checkpoint)
+ 
+        
+        # best model checkpoint 경로 가져오기
+        best_checkpoint = trainer_state.get('best_model_checkpoint', None)
+        self.config = transformers.AutoConfig.from_pretrained(best_checkpoint)
+        self.tokenizer = transformers.AutoTokenizer.from_pretrained(best_checkpoint)
+        self.model = transformers.AutoModelForQuestionAnswering.from_pretrained(best_checkpoint, config=self.config)
         # Trainer 인스턴스 생성
         self.trainer = QuestionAnsweringTrainer(
             model = self.model,
@@ -53,7 +65,7 @@ class Extraction_based_MRC:
             post_process_function = self.post_processing_function,
             compute_metrics = self.compute_metrics
         )
-        print("가장 마지막 체크포인트로 모델과 Trainer가 로드되었습니다.")
+        print("bestmodel 체크포인트로 모델과 Trainer가 로드되었습니다.")
 
     def post_processing_function(self, examples, features, predictions, training_args):
         # 모델의 output을 바탕으로 단어를 예측합니다. (model > trainer > post_processing_function > util_qa.py에 있는 postprocess_qa_predictions)
@@ -69,7 +81,6 @@ class Extraction_based_MRC:
             is_world_process_zero = self.trainer.is_world_process_zero(),
         )
         
-        # Format the result to the format the metric expects.
         formatted_predictions = [{"id": k, "prediction_text": v} for k, v in predictions.items()]
 
         if training_args.do_predict:
@@ -186,14 +197,12 @@ class Generation_based_MRC:
         lastcheckpt = glob(model_path + '/checkpoint-*')[-1]
     
         trainer_state_file = os.path.join(lastcheckpt, 'trainer_state.json')
+        print('제일 마지막 checkpoint :',trainer_state_file)
         if os.path.exists(trainer_state_file):
             with open(trainer_state_file, 'r') as f:
                 trainer_state = json.load(f)
                 best_checkpoint = trainer_state.get('best_model_checkpoint', None)
-    
-        if os.path.exists(trainer_state_file):
-            with open(trainer_state_file, 'r') as f:
-                trainer_state = json.load(f)
+                print('best checkpoint :', best_checkpoint)
         
         # best model checkpoint 경로 가져오기
         best_checkpoint = trainer_state.get('best_model_checkpoint', None)
@@ -227,12 +236,10 @@ class Generation_based_MRC:
         # [14,42,512,41,125,643,-100,-100,-100]
         # > [14,42,512,31,125,643,패딩,패딩,패딩] 
         decoded_preds = self.tokenizer.batch_decode(preds, skip_special_tokens=True)
-        # decoded_labels is for rouge metric, not used for f1/em metric
 
         labels = np.where(labels != -100, labels, self.tokenizer.pad_token_id)
         decoded_labels = self.tokenizer.batch_decode(labels, skip_special_tokens=True)
 
-        # Some simple post-processing
         decoded_preds, decoded_labels = self.postprocess_text(decoded_preds, decoded_labels)
 
         formatted_predictions = [{"id": ex['id'], "prediction_text": decoded_preds[i]} for i, ex in enumerate(self.datasets["validation"])]
