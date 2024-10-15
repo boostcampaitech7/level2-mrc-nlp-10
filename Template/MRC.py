@@ -6,12 +6,13 @@ from arguments import Extraction_based_MRC_arguments, Generation_based_MRC_argum
 from All_dataset import prepare_dataset
 from transformers import DataCollatorForSeq2Seq
 import wandb
-from datasets import load_metric
+from datasets import load_metric, concatenate_datasets, Dataset
 import os
 from glob import glob
 import numpy as np
 import nltk
 import pandas as pd
+from sklearn.model_selection import KFold
 nltk.download('punkt')
 import warnings
 warnings.filterwarnings('ignore')
@@ -82,13 +83,13 @@ class Extraction_based_MRC:
         )
         
         formatted_predictions = [{"id": k, "prediction_text": v} for k, v in predictions.items()]
-
+        print(examples)
         if training_args.do_predict:
             return formatted_predictions
         elif training_args.do_eval:
             references = [
                 {"id": ex["id"], "answers": ex['answers']}
-                for ex in self.datasets["validation"]
+                for ex in examples
             ]
 
             return EvalPrediction(
@@ -98,7 +99,7 @@ class Extraction_based_MRC:
     def compute_metrics(self, p: EvalPrediction):
         return self.metric.compute(predictions = p.predictions, references = p.label_ids)
     
-    def train(self, train_dataset = None, eval_dataset = None):
+    def get_trainer(self, train_dataset = None, eval_dataset = None):
         self.training_args = TrainingArguments(
             output_dir = self.output_dir,
             learning_rate = 3e-5,
@@ -114,16 +115,11 @@ class Extraction_based_MRC:
             logging_strategy = "epoch",
             load_best_model_at_end = True,
         )
-        if train_dataset == None:
-            train_dataset = self.datas.get_mrc_train_dataset()
-            print('train_dataset을 넣지 않아 기존에 주어진 train dataset으로 학습합니다.')
-        if eval_dataset == None:
-            eval_dataset = self.datas.get_mrc_eval_dataset()
-            print('eval_dataset을 넣지 않아 기존에 주어진 eval_dataset으로 평가합니다.')
 
         data_collator = DataCollatorWithPadding(
             self.tokenizer, pad_to_multiple_of=8 if self.training_args.fp16 else None
-    )
+        )
+
         self.trainer = QuestionAnsweringTrainer(
                 model = self.model,
                 args = self.training_args,
@@ -139,9 +135,51 @@ class Extraction_based_MRC:
         if self.args.use_wandb:
             self.training_args.report_to = ["wandb"]
             self.training_args.run_name = "default"
+            
+    def train(self, train_dataset = None, eval_dataset = None):
+        self.get_trainer()
+        if train_dataset == None:
+            train_dataset = self.datas.get_mrc_train_dataset()
+            print('train_dataset을 넣지 않아 기존에 주어진 train dataset으로 학습합니다.')
+        else:
+            train_dataset = self.datas.get_mrc_train_dataset(train_dataset)
 
+        if eval_dataset == None:
+            eval_dataset = self.datas.get_mrc_eval_dataset() 
+            print('eval_dataset을 넣지 않아 기존에 주어진 eval_dataset으로 평가합니다.')
+        else:
+            eval_dataset = self.datas.get_mrc_eval_dataset(eval_dataset)
+
+        self.trainer.train_dataset = train_dataset
+        self.trainer.eval_dataset = eval_dataset
         self.trainer.train()
+        
 
+    def kfold_train(self, train_dataset = None, eval_dataset = None):
+        if train_dataset == None and eval_dataset == None:
+            print('train_dataset을 넣지 않아 기존에 주어진 train dataset으로 학습합니다.')
+            print('eval_dataset을 넣지 않아 기존에 주어진 eval_dataset으로 평가합니다.')
+            train_dataset, eval_dataset = self.datasets['train'], self.datasets['validation']
+            concat_data = concatenate_datasets([train_dataset, eval_dataset])
+        else:
+            concat_data = concatenate_datasets([train_dataset, eval_dataset])
+
+        kf = KFold(n_splits = self.args.kfold, shuffle = True, random_state = 42,)
+        self.get_trainer()
+        self.training_args.num_train_epochs = self.args.epoch_for_kfold
+
+        for fold, (train_idx, eval_idx) in enumerate(kf.split(concat_data)):
+            print(f'--------------{fold+1} fold ----------------')
+            train = Dataset.from_dict(concat_data[train_idx])
+            eval = Dataset.from_dict(concat_data[eval_idx])
+            eval_examples = eval
+            self.trainer.train_dataset = self.datas.get_mrc_train_dataset(train)
+            self.trainer.eval_dataset = self.datas.get_mrc_eval_dataset(eval)
+            self.trainer.eval_examples = eval_examples
+            print(eval_examples)
+            print(self.datas.get_mrc_eval_dataset(eval))
+            self.trainer.train()
+            
     def start_wandb(self):
         os.system("rm -rf /root/.cache/wandb")
         os.system("rm -rf /root/.config/wandb")
@@ -154,15 +192,14 @@ class Extraction_based_MRC:
     def inference(self, test_dataset):
         assert self.trainer is not None, "trainer가 없습니다. 로드하거나 train하세요."
         test_dataset, test_examples = self.datas.get_mrc_test_dataset(test_dataset)
-        
+        self.training_args.do_predict = True
         predictions = self.trainer.predict(
             test_dataset = test_dataset,
             test_examples = test_examples)        
 
         print('output을 id : answers 형태의 json파일로 내보냅니다. 결과는 model.extraction_mrc_results로 확인할 수 있습니다.')
-        self.extraction_mrc_results = pd.DataFrame({'id' : test_examples['id'], 
-                                                    'answers' : [item['prediction_text'] for item in predictions.predictions]})
-        result_dict = self.extraction_mrc_results.set_index('id')['answers'].to_dict()
+        self.extraction_mrc_results = pd.DataFrame(predictions)
+        result_dict = self.extraction_mrc_results.set_index('id')['prediction_text'].to_dict()
         if not os.path.exists("predict_result"):
             os.makedirs("predict_result")
             print("폴더 'predict_result'가 생성되었습니다.")

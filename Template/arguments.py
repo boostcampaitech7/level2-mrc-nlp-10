@@ -14,7 +14,7 @@ class TF_IDF_retrieval_arguments:
         metadata = {'help' : '테스트 데이터셋 위치입니다.'}
     )
     k : int = field(
-        default = 20,
+        default = 30,
         metadata = {'help' : '비슷한 문서 중 몇개를 내보낼지를 결정합니다.'}
     )
     num_clusters : int = field(
@@ -142,7 +142,7 @@ class Extraction_based_MRC_arguments:
         metadata = {'help': "Extraction_base 모델의 배치사이즈입니다."}
     )
     num_train_epochs : int = field(
-        default = 5,
+        default = 2,
         metadata = {'help' : '에폭을 정합니다.'}
     )
     n_best_size : int = field(
@@ -185,8 +185,14 @@ class Extraction_based_MRC_arguments:
         default = 3e-5,
         metadata = {'help' : '러닝레이트입니다.'}
     )
-
-
+    kfold : int = field(
+        default = 3,
+        metadata = {'help' : 'Kfold의 fold 수를 정합니다.'}
+    )
+    epoch_for_kfold : int = field(
+        default = 2,
+        metadata = {'help' : '교차검증을 통해 학습을 할 때의 epoch 수입니다.'}
+    )
 #  ------------------------------------------------------------------
 
 
