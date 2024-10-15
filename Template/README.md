@@ -64,5 +64,6 @@ generative mrc model의 train data는 그러한 과정이 없습니다. 그래�
 -Cross validation을 활용한 훈련 방법은 구현했습니다.
 다만 제출해본 결과 괜찮은 성능 향상이 보이진 않네요 ㅠ
 epoch이 1 이상부터 오버피팅이 발생하는 만큼, fold 수와 epoch수를 아주 작게 조절하거나 train_dataset을 늘린 뒤에 cross validation을 하는 것이 성능 향상에 도움이 될 듯 싶습니다.
+Kfold train은 model.kfold_train()으로 훈련하실 수 있습니다. (argument에서 fold 개수와 epoch 조정 하시길 바랍니다)
 
 #### 다른 분들이 안하시면 제가 차근차근 할 목록들입니다. 혹시라도 이 중 무언가 맡아주실 의향이 있다면 말씀 주시고 해주시면 감사하겠습니다 !!!
