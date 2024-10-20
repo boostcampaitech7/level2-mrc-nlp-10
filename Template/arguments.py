@@ -42,15 +42,15 @@ class BM25_retrieval_arguments:
         metadata={'help': "데이터셋 위치입니다."}
     )
     test_data_route: Optional[str] = field(
-        default='/data/ephemeral/data/test_dataset/',
+        default='/data/ephemeral/home/level2-mrc-nlp-10/data/test_dataset',
         metadata={'help': '테스트 데이터셋 위치입니다.'}
     )
     k: int = field(
-        default=20,
+        default = 30,
         metadata={'help': '비슷한 문서 중 몇 개를 내보낼지를 결정합니다.'}
     )
     wiki_route: str = field(
-        default='/data/ephemeral/data/wikipedia_documents.json',
+        default = '/data/ephemeral/home/practice/data/wikipedia_documents.json',
         metadata={'help': '위키 데이터의 경로입니다.'}
     )
     data_path: str = field(
@@ -58,7 +58,7 @@ class BM25_retrieval_arguments:
         metadata={'help': 'BM25 검색 결과를 저장할 경로입니다.'}
     )
     bm25_tokenizer: str = field(
-        default="klue/bert-base",
+        default="klue/roberta-small",
         metadata={'help': 'BM25 검색에서 사용할 토크나이저를 설정합니다.'}
     )
     model_name: str = field(
@@ -72,16 +72,21 @@ class BM25_retrieval_arguments:
 @dataclass
 class Dense_search_retrieval_arguments:
     data_route : Optional[str] = field(
-        default = '/data/ephemeral/data/train_dataset/',
+        default = '/data/ephemeral/home/practice/data/train_dataset',
         metadata = {'help' : "데이터셋 위치입니다."},
     )
     test_data_route : Optional[str] = field(
-        default = '/data/ephemeral/data/test_dataset/',
+        default = '/data/ephemeral/home/practice/data/test_dataset',
         metadata = {'help' : '테스트 데이터셋 위치입니다.'}
     )
+    
     data_path : str = field(
         default = './retrieval_result',
         metadata = {'help' : 'retrieval_result를 저장할 경로입니다.'}
+    )
+    output_dir : str = field(
+        default = './Dense_embedding_retrieval_model_results',
+        metadata = {'help' : 'DPR 모델의 저장 경로입니다.'}
     )
 
     model_name : Optional[str] = field(
@@ -89,23 +94,35 @@ class Dense_search_retrieval_arguments:
         metadata = {'help': "모델이름 입니다."}
     )
     wiki_route : str = field(
-        default = '/data/ephemeral/data/wikipedia_documents.json',
+        default = '/data/ephemeral/home/practice/data/wikipedia_documents.json',
         metadata = {'help' : '위키데이터의 경로입니다.'}
     )
     num_neg : int = field(
-        default = 15,
+        default = 10,
         metadata = {'help': "네거티브 샘플링 몇개할건지를 고릅니다."}
     )
     num_train_epochs : int = field(
-        default = 5,
+        default = 3,
         metadata = {'help': "에폭입니다."}
+    )
+    kfold : int = field(
+        default = 3,
+        metadata = {'help' : 'Kfold의 fold 수를 정합니다.'}
+    )
+    epoch_for_kfold : int = field(
+        default = 1,
+        metadata = {'help' : '교차검증을 통해 학습을 할 때의 epoch 수입니다.'}
     )
     per_device_train_batch_size : int = field(
         default = 8,
         metadata = {'help': "Dense embedding 모델의 배치사이즈입니다."}
     )
+    per_device_eval_batch_size : int = field(
+        default = 8,
+        metadata = {'help' : 'eval과정에서의 batch size입니다.'}
+    )
     learning_rate : float = field(
-        default = 5e-5,
+        default = 3e-5,
         metadata = {'help': "러닝레이트입니다."}
     )
     weight_decay : float = field(
@@ -125,9 +142,10 @@ class Dense_search_retrieval_arguments:
         metadata = {'help' : 'wandb를 '}
     )
     wandb_key : str = field(
-        default = "d1af552c8639b9bc38ead601ac46df6a86b16c97",
+        default = "ea26fff0d932bc74bbfad9fd507b292c67444c02",
         metadata = {'help' : 'wandb API 키 입니다.'}
     )
+
 
 # 용가리 : ea26fff0d932bc74bbfad9fd507b292c67444c02
 # 토스트 : d1af552c8639b9bc38ead601ac46df6a86b16c97
@@ -189,7 +207,7 @@ class Extraction_based_MRC_arguments:
         metadata = {'help' : '답변의 최대 길이를 설정합니다.'}
     )
     data_route: Optional[str] = field(
-        default = '/data/ephemeral/Jung/level2-mrc-nlp-10/data/train_dataset',
+        default = '/data/ephemeral/home/practice/data/train_dataset',
         metadata = {'help' :"데이터셋 위치입니다."},
     )
     test_data_route : Optional[str] = field(
@@ -213,7 +231,7 @@ class Extraction_based_MRC_arguments:
         metadata = {'help' : 'wandb를 '}
     )
     wandb_key : str = field(
-        default = "d1af552c8639b9bc38ead601ac46df6a86b16c97",
+        default = "ea26fff0d932bc74bbfad9fd507b292c67444c02",
         metadata = {'help' : 'wandb API 키 입니다.'}
     )
     learning_rate : float = field(
@@ -225,7 +243,7 @@ class Extraction_based_MRC_arguments:
         metadata = {'help' : 'Kfold의 fold 수를 정합니다.'}
     )
     epoch_for_kfold : int = field(
-        default = 2,
+        default = 1,
         metadata = {'help' : '교차검증을 통해 학습을 할 때의 epoch 수입니다.'}
     )
 #  ------------------------------------------------------------------
@@ -254,7 +272,7 @@ class Generation_based_MRC_arguments:
         metadata = {'help' : 'wandb를 사용할 지 여부입니다. 사용할거면 본인 API 키를 모델안에 넣어주세요.'}
     )
     wandb_key : str = field(
-        default = "d1af552c8639b9bc38ead601ac46df6a86b16c97",
+        default = "ea26fff0d932bc74bbfad9fd507b292c67444c02",
         metadata = {'help' : 'wandb API 키 입니다.'}
     )
     model_name : str = field(
@@ -297,9 +315,6 @@ class Generation_based_MRC_arguments:
         default = 5,
         metadata = {'help' : '에폭을 정합니다.'}
     )
-
-
-
 
 
 

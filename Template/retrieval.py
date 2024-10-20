@@ -8,8 +8,10 @@ import os
 import transformers
 import pickle
 import torch
+from sklearn.model_selection import KFold
+from glob import glob
 import torch.nn as nn
-from transformers import PreTrainedModel
+from transformers import PreTrainedModel,DPRQuestionEncoder, DPRContextEncoder
 from All_dataset import prepare_dataset
 from transformers import DefaultDataCollator
 from transformers import TrainingArguments, Trainer
@@ -199,28 +201,43 @@ import torch
 import torch.nn.functional as F
 import transformers
 
-class Dense_embedding_retrieval_model(PreTrainedModel):
-    def __init__(self):
+class bert_model(PreTrainedModel):
+    def __init__(self, model_name, config):
         self.args = Dense_search_retrieval_arguments
-        config = transformers.AutoConfig.from_pretrained(self.args.model_name)
+        super(bert_model, self).__init__(config)
+
+        config = self.config
+
+        self.bert = transformers.AutoModel.from_pretrained(model_name, config = config)
+
+    def forward(self, input_ids,
+                attention_mask=None, token_type_ids=None):
+
+        outputs = self.bert(input_ids,
+                            attention_mask=attention_mask,
+                            token_type_ids=token_type_ids)
+
+        pooled_output = outputs[1]
+        return pooled_output
+  
+class Dense_embedding_retrieval_model(PreTrainedModel):
+    def __init__(self, checkpoint = None):
+        self.args = Dense_search_retrieval_arguments
+        checkpoint = self.args.model_name if checkpoint == None else checkpoint
+        config = transformers.AutoConfig.from_pretrained(checkpoint)
         super(Dense_embedding_retrieval_model, self).__init__(config)
-        model_name = self.args.model_name
-        self.p_model = transformers.AutoModel.from_pretrained(model_name)
-        # self.q_model = transformers.AutoModel.from_pretrained(model_name)
+        self.p_model = bert_model(checkpoint, config = config)
+        # self.q_model = bert_model(checkpoint, config = config)
         self.q_model = self.p_model
-        # self.p_linear = nn.Linear(768, 256)  # emb_dim은 p_model의 출력 크기
-        # self.p_linear2 = nn.Linear(256, 768)
-        # self.q_linear = nn.Linear(768, 256)
-        # self.q_linear2 = nn.Linear(256, 768)
-        # self.dropout = nn.Dropout(0.1)
+
 
     def forward(self, p_input_ids, p_attention_mask, p_token_type_ids,
-                q_input_ids, q_attention_mask, q_token_type_ids, labels):
+                q_input_ids, q_attention_mask, q_token_type_ids, labels = None):
         
         p_input = {
-            'input_ids': p_input_ids.view(self.args.per_device_train_batch_size * (self.args.num_neg+1),-1),
-            'attention_mask': p_attention_mask.view(self.args.per_device_train_batch_size * (self.args.num_neg+1),-1),
-            'token_type_ids': p_token_type_ids.view(self.args.per_device_train_batch_size * (self.args.num_neg+1),-1)
+            'input_ids': p_input_ids,
+            'attention_mask': p_attention_mask,
+            'token_type_ids': p_token_type_ids
         }
         q_input = {
             'input_ids': q_input_ids,
@@ -231,30 +248,12 @@ class Dense_embedding_retrieval_model(PreTrainedModel):
         p_outputs = self.p_model(**p_input)
         q_outputs = self.q_model(**q_input)
 
-        p_outputs = p_outputs.pooler_output  # (batch_size * (num_neg+1), emb_dim)
-        q_outputs = q_outputs.pooler_output  # (batch_size, emb_dim)
-
-        # p_outputs = self.p_linear(p_outputs)
-        # p_outputs = self.dropout(p_outputs)
-        # p_outputs = self.p_linear2(p_outputs)
-        # p_outputs = self.dropout(p_outputs)
-
-        # q_outputs = self.q_linear(q_outputs)
-        # q_outputs = self.dropout(q_outputs)
-        # q_outputs = self.q_linear2(q_outputs)
-        # q_outputs = self.dropout(q_outputs)
-
-        # Reshape p_outputs, q_outputs
-        p_outputs = p_outputs.view(self.args.per_device_train_batch_size, self.args.num_neg + 1, -1)  # (batch_size, num_neg+1, emb_dim)
-        q_outputs = q_outputs.view(self.args.per_device_train_batch_size, 1, -1)  # (batch_size, 1, emb_dim)
-
-        # 유사도 계산 (cosine similarity or dot product)
-        sim_scores = torch.matmul(q_outputs, p_outputs.transpose(1, 2)).squeeze(1)  # (batch_size, num_neg+1)
-
+        sim_scores = torch.matmul(q_outputs, p_outputs.T) # (batch_size, batch_size)
         # Negative Log Likelihood 적용
-        log_probs = F.log_softmax(sim_scores, dim=-1)  # (batch_size, num_neg+1)
-        loss = F.nll_loss(log_probs, labels)  # NLL Loss 계산
+        labels = torch.arange(0, len(p_outputs)).long().to(self.device)
+        loss = F.cross_entropy(sim_scores, labels)
 
+    
         return {
             'loss': loss,
             'output' : sim_scores
@@ -262,37 +261,37 @@ class Dense_embedding_retrieval_model(PreTrainedModel):
 
 
 class Dense_embedding_retrieval:
-    def __init__(self):
-        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    def __init__(self, checkpoint = None):
         self.args = Dense_search_retrieval_arguments()
         self.model = Dense_embedding_retrieval_model()
+        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.model.to(self.device)
+        self.trainer = None
         if self.args.use_wandb:
             self.start_wandb()
         self.datas = prepare_dataset(self.args)
-        self.contexts = self.datas.get_context()
+
 
     def compute_metrics(self,eval_preds):
 
         logits, labels = eval_preds  
-
-        # logits에서 가장 높은 값을 가진 인덱스를 예측값으로 사용
-        logits = torch.tensor(logits, dtype = torch.long)
-        predictions = torch.argmax(logits, dim=1).detach().cpu().numpy()
-        
+        logit_size = logits.shape[0]  # logits의 배치 크기
+        num_classes = self.args.per_device_train_batch_size
+        labels = torch.arange(num_classes).repeat((logit_size + num_classes - 1) // num_classes)[:logit_size].cpu().numpy()
+        predictions = torch.argmax(torch.tensor(logits), dim=1).detach().cpu().numpy()
         accuracy = accuracy_score(labels, predictions)  
         f1 = f1_score(labels, predictions, average='weighted') 
 
         return {'accuracy' : accuracy, 'f1' : f1 }
 
-    def train(self):
-        self.train_dataset = self.datas.get_dense_train_dataset()
-        self.valid_dataset = self.datas.get_dense_valid_dataset()
+    def get_trainer(self):
+        train_dataset = self.datas.test_dense_train_dataset(mode = 'train')
+        valid_dataset = self.datas.test_dense_train_dataset(mode = 'valid')
         gc.collect()
         torch.cuda.empty_cache()
         data_collator = DefaultDataCollator()
-        training_args = TrainingArguments(
-            output_dir = './Dense_embedding_retrieval_model_results',
+        self.training_args = TrainingArguments(
+            output_dir = self.args.output_dir,
             num_train_epochs = self.args.num_train_epochs,
             per_device_train_batch_size = self.args.per_device_train_batch_size,
             per_device_eval_batch_size = self.args.per_device_train_batch_size,
@@ -307,21 +306,72 @@ class Dense_embedding_retrieval:
             weight_decay = 0.01,
         )
         if self.args.use_wandb:
-            training_args.report_to = ["wandb"]
-            training_args.run_name = "default"
+            self.training_args.report_to = ["wandb"]
+            self.training_args.run_name = "default"
 
 
-        trainer = Trainer(
+        self.trainer = Trainer(
             model = self.model,
-            args = training_args,
-            train_dataset = self.train_dataset,
-            eval_dataset = self.valid_dataset,
+            args = self.training_args,
+            train_dataset = train_dataset,
+            eval_dataset = valid_dataset,
             compute_metrics = self.compute_metrics,
-            data_collator = data_collator
-            
+            data_collator = data_collator   
         )
-        trainer.train()
         torch.cuda.empty_cache()
+        gc.collect()
+
+    def load_model(self):
+        self.training_args = TrainingArguments(
+            output_dir=self.args.output_dir,
+            do_train=False,
+            do_eval=True,
+            per_device_eval_batch_size=self.args.per_device_eval_batch_size,  
+            fp16=True
+        )
+        
+        model_path = self.args.output_dir
+        checkpoints = sorted(glob(model_path + '/checkpoint-*'), key=lambda x: int(x.split('-')[-1]), reverse=True)
+        
+        if not checkpoints:
+            raise ValueError("Checkpoint 파일이 없습니다.")
+
+        lastcheckpt = checkpoints[0]
+        trainer_state_file = os.path.join(lastcheckpt, 'trainer_state.json')
+        
+        print('제일 마지막 checkpoint:', trainer_state_file)
+        
+        best_checkpoint = lastcheckpt  # 기본값으로 마지막 체크포인트
+        if os.path.exists(trainer_state_file):
+            with open(trainer_state_file, 'r') as f:
+                trainer_state = json.load(f)
+                best_checkpoint = trainer_state.get('best_model_checkpoint', lastcheckpt)
+                print('best checkpoint:', best_checkpoint)
+ 
+        # best model checkpoint 로드
+        self.model = Dense_embedding_retrieval_model(best_checkpoint)  # 이 부분에서 로딩
+        self.model.to(self.device)
+
+
+    def train(self):
+        assert self.trainer is not None, "trainer가 없습니다. 로드하거나 train하세요."
+        self.trainer.train()
+        torch.cuda.empty_cache()
+    
+    def train_kfold(self):
+        kf = KFold(n_splits = self.args.kfold, shuffle = True, random_state = 42,)
+        kfold_dataset = self.datas.test_dense_train_dataset(mode = 'train')
+
+        self.training_args.num_train_epochs = self.args.epoch_for_kfold
+        self.training_args.dataloader_drop_last = True
+
+
+        for fold, (train_idx, valid_idx) in enumerate(kf.split(kfold_dataset)):
+            print(f'----------------- fold {fold + 1} -------------------------')
+
+            self.trainer.train_dataset = torch.utils.data.Subset(kfold_dataset, train_idx)  # Subset으로 변경
+            self.trainer.eval_dataset = torch.utils.data.Subset(kfold_dataset, valid_idx)  # Subset으로 변경
+            self.trainer.train()
 
 
     def build_faiss(self):
@@ -336,13 +386,13 @@ class Dense_embedding_retrieval:
         else:
             print("Building Faiss Indexer.")
             self.model.eval()
-            self.passages = self.contexts
+            passages = self.datas.get_context()
             tokenizer = transformers.AutoTokenizer.from_pretrained(self.args.model_name)
 
             with torch.no_grad():
                 embeddings = []
-                for passage in tqdm(self.passages):
-                    inputs = tokenizer(passage, return_tensors='pt', padding=True, truncation=True).to(self.device)
+                for passage in tqdm(passages):
+                    inputs = tokenizer(passage, return_tensors='pt', padding='max_length', truncation=True).to(self.device)
                     embedding = self.model.p_model(**inputs).pooler_output.squeeze(0)  # passage 모델에서 출력
                     embeddings.append(embedding.cpu().numpy())
 
@@ -366,9 +416,8 @@ class Dense_embedding_retrieval:
 
     def search_faiss(self):
         top_k = self.args.top_k
-        self.passages = self.contexts
+        passages = self.datas.get_context()
         self.model.eval()
-
         if not os.path.exists('retrieval_result'):
             os.makedirs('retrieval_result')
 
@@ -388,7 +437,7 @@ class Dense_embedding_retrieval:
                 'question' : example['question'],
                 'id' : example['id'],
                 'context' : ' '.join(
-                    [self.contexts[pid] for pid in doc_indices[idx]]
+                    [passages[pid] for pid in doc_indices[idx]]
                 ),
             }
             if 'context' in example.keys() and 'answers' in example.keys():
@@ -405,6 +454,88 @@ class Dense_embedding_retrieval:
         df = pd.DataFrame(total)
         datasets = DatasetDict({"validation": Dataset.from_pandas(df, features=f)})
         return datasets
+    
+    def search(self, mode = 'test'):
+        self.model.p_model.eval()
+        self.model.q_model.eval()
+        # 토크나이저 로드
+        passages = self.datas.get_context()
+        tokenizer = transformers.AutoTokenizer.from_pretrained(self.args.model_name)
+        
+        # 테스트 데이터셋과 쿼리 벡터 가져오기
+        test_dataset, query_vec = self.datas.get_dense_queries_for_search(mode = mode)
+
+        with torch.no_grad():
+            query_vec = query_vec.to(self.device)
+            q_embs = self.model.q_model(**query_vec).cpu()
+            # 패시지 데이터 가져오기
+            p_embs = []
+            batch_size = self.args.per_device_train_batch_size
+            for i in tqdm(range(0, len(passages), batch_size)):
+                batch_passages = passages[i:i + batch_size]
+                tokenized_batch = tokenizer(batch_passages, padding='max_length', truncation=True, return_tensors='pt').to(self.device)
+                p_emb = self.model.p_model(**tokenized_batch).cpu().numpy()
+                p_embs.append(p_emb)
+
+            # 배치별 임베딩을 모두 연결
+            p_embs = np.vstack(p_embs)
+            p_embs = torch.tensor(np.array(p_embs)).squeeze()
+        print('q_emb :', q_embs.size(), 'p_emb :', p_embs.size())
+
+        k = self.args.top_k
+        sim_scores = torch.matmul(q_embs, torch.transpose(p_embs, 0, 1))
+
+        doc_indices = torch.argsort(sim_scores, dim=1, descending=True)[:, :k]
+
+        total = []
+        for idx, example in enumerate(tqdm(test_dataset, desc = "Dense retrieval: ")):
+            tmp = {
+                "question": example["question"],
+                "id": example["id"],
+                "context": " ".join([passages[pid] for pid in doc_indices[idx]]),
+            }
+
+            if "context" in example.keys() and "answers" in example.keys():
+                tmp["original_context"] = example["context"]
+                
+                ground_truth_passage = example["context"]
+                retrieved_passages = [passages[pid] for pid in doc_indices[idx]]
+                
+                # 정답이 retrieved passages에 포함되는지 여부를 확인
+                tmp["answers"] = ground_truth_passage in retrieved_passages  # True or False
+            total.append(tmp)
+
+        df = pd.DataFrame(total)
+        self.df = df
+
+        if mode == 'test':
+            f = Features(
+                {
+                    "context": Value(dtype="string", id=None),
+                    "id": Value(dtype="string", id=None),
+                    "question": Value(dtype="string", id=None),
+                }
+            )
+            datasets = DatasetDict({"validation": Dataset.from_pandas(df, features=f)})
+        if mode == 'eval':
+            f = Features(
+                {
+                    "context": Value(dtype="string", id=None),
+                    "id": Value(dtype="string", id=None),
+                    "question": Value(dtype="string", id=None),
+                    "original_context": Value(dtype="string", id=None),
+                    "answers": Value(dtype="bool", id=None)  # answers를 bool로 설정
+                }
+            )
+
+            datasets = DatasetDict({"validation": Dataset.from_pandas(df, features=f)})
+            cnt = 0
+            for i in datasets['validation']['answers']:
+                if i == True:
+                    cnt += 1
+            print('acc :',cnt / len(datasets['validation']['answers']))
+
+        return datasets
 
         
 
@@ -417,6 +548,175 @@ class Dense_embedding_retrieval:
         os.environ["WANDB_API_KEY"] = self.args.wandb_key
         wandb.init(project='Dense_embedding_retrieval')
 
+    def sequential_reranking(self, mode = 'test'):
+        print(f'BM25로 100개를 가져온 뒤 Dense retrieval로 {self.args.top_k}개의 문서를 찾습니다.')
+        test_dataset, query_vec = self.datas.get_dense_queries_for_search(mode = mode)
+        query_vec.to(self.device)
+        queries = test_dataset['question']
+        BMtotal = []
+        passages = self.datas.get_context()
+        BM25 = BM25Search()
+        tokenizer = transformers.AutoTokenizer.from_pretrained(self.args.model_name)
+
+        # get_relevant_doc_bulk_bm25 메서드를 사용하여 문서 점수와 인덱스 가져오기
+        _, doc_indices = BM25.get_relevant_doc_bulk_bm25(queries, k = 100)
+        self.doc_indices = doc_indices
+
+        for idx, example in enumerate(
+            tqdm(test_dataset, desc='BM25 retrieval: ')
+        ):
+            tmp = {
+                'question': example['question'],
+                'id': example['id'],
+                'context': [passages[pid] for pid in doc_indices[idx]],
+                # 'doc_scores': doc_scores[idx],  # 점수 추가
+            }
+            if 'context' in example.keys() and 'answers' in example.keys():
+                tmp['answers'] = example['answers']
+            BMtotal.append(tmp)
+
+        del BM25 # OOM 방지
+        gc.collect()
+
+        self.model.p_model.eval()
+        self.model.q_model.eval()
+        k = self.args.top_k
+        Densetotal = []
+        with torch.no_grad():
+            q_embs = self.model.q_model(**query_vec).cpu()
+            for idx, example in enumerate(tqdm(BMtotal, desc='sequential reranking')):
+                # context에 대한 배치 처리
+                batch_input = tokenizer(
+                    example['context'], padding = 'max_length', truncation = True, return_tensors = 'pt'
+                ).to(self.device) # (100, )
+                p_embs = self.model.p_model(**batch_input).cpu() # (100, 768)
+                # 유사도 계산
+                sim_scores = torch.matmul(q_embs, p_embs.T) (1,100)
+                topk_indices = torch.argsort(sim_scores, dim=1, descending=True)[:, :k]
+                    
+                # top-k 문서 가져오기
+                tmp = {
+                    'question': example['question'],
+                    'id': example['id'],
+                    'context': ' '.join([passages[pid] for pid in topk_indices[0]])
+                }
+                Densetotal.append(tmp)
+
+        self.dense = Densetotal
+        df = pd.DataFrame(Densetotal)
+
+        if mode == 'test':
+            f = Features(
+                {
+                    "context": Value(dtype="string", id=None),
+                    "id": Value(dtype="string", id=None),
+                    "question": Value(dtype="string", id=None),
+                }
+            )
+            datasets = DatasetDict({"validation": Dataset.from_pandas(df, features=f)})
+        if mode == 'eval':
+            f = Features(
+                {
+                    "context": Value(dtype="string", id=None),
+                    "id": Value(dtype="string", id=None),
+                    "question": Value(dtype="string", id=None),
+                    "original_context": Value(dtype="string", id=None),
+                    "answers": Value(dtype="bool", id=None)  # answers를 bool로 설정
+                }
+            )
+
+            datasets = DatasetDict({"validation": Dataset.from_pandas(df, features=f)})
+            cnt = 0
+            for i in datasets['validation']['answers']:
+                if i == True:
+                    cnt += 1
+            print('acc :',cnt / len(datasets['validation']['answers']))
+
+        return datasets
+    
+    def cross_reranking(self, mode = 'test', lamb_da = 1.1):
+        print('BM25와 Dense retrieval의 score을 합한 뒤 sort하여 문서를 찾습니다.')
+        print(f'현재 가중합은 {lamb_da}*Densescore + 1*BMscore입니다.')
+        print('lamb_da = 뫄뫄 를 통해 람다를 바꿀 수 있습니다. (기본값 1.1)')
+        test_dataset, query_vec = self.datas.get_dense_queries_for_search(mode = mode)
+        passages = self.datas.get_context()
+        BM25 = BM25Search()
+        tokenizer = transformers.AutoTokenizer.from_pretrained(self.args.model_name)
+
+        with torch.no_grad():
+            query_vec = query_vec.to(self.device)
+            q_embs = self.model.q_model(**query_vec).cpu()
+            # 패시지 데이터 가져오기
+            p_embs = []
+            batch_size = self.args.per_device_train_batch_size
+            for i in tqdm(range(0, len(passages), batch_size)):
+                batch_passages = passages[i:i + batch_size]
+                tokenized_batch = tokenizer(batch_passages, padding='max_length', truncation=True, return_tensors='pt').to(self.device)
+                p_emb = self.model.p_model(**tokenized_batch).cpu().numpy()
+                p_embs.append(p_emb)
+
+            # 배치별 임베딩을 모두 연결
+            p_embs = np.vstack(p_embs)
+            p_embs = torch.tensor(np.array(p_embs)).squeeze()
+        print('q_emb :', q_embs.size(), 'p_emb :', p_embs.size())
+
+        dense_scores = torch.matmul(q_embs, torch.transpose(p_embs, 0, 1)) # (쿼리개수, 50000)
+        del self.model
+        gc.collect() # OOM 방지
+
+        queries = test_dataset['question']
+        bm_scores =  torch.tensor(BM25.get_relevant_doc_bulk_bm25(queries, k = len(p_embs), mode = 'ensemble')) # (쿼리개수, 50000)
+        total_scores = (lamb_da * dense_scores) + bm_scores # 가중합
+        doc_indices = torch.argsort(total_scores, dim=1, descending=True)[:, :self.args.top_k]
+
+        total = []
+        for idx, example in enumerate(tqdm(test_dataset, desc = "cross reranking: ")):
+            tmp = {
+                "question": example["question"],
+                "id": example["id"],
+                "context": " ".join([passages[pid] for pid in doc_indices[idx]]),
+            }
+
+            if "context" in example.keys() and "answers" in example.keys():
+                tmp["original_context"] = example["context"]
+                
+                ground_truth_passage = example["context"]
+                retrieved_passages = [passages[pid] for pid in doc_indices[idx]]
+                
+                # 정답이 retrieved passages에 포함되는지 여부를 확인
+                tmp["answers"] = ground_truth_passage in retrieved_passages  # True or False
+            total.append(tmp)
+
+        df = pd.DataFrame(total)
+
+        if mode == 'test':
+            f = Features(
+                {
+                    "context": Value(dtype="string", id=None),
+                    "id": Value(dtype="string", id=None),
+                    "question": Value(dtype="string", id=None),
+                }
+            )
+            datasets = DatasetDict({"validation": Dataset.from_pandas(df, features=f)})
+        if mode == 'eval':
+            f = Features(
+                {
+                    "context": Value(dtype="string", id=None),
+                    "id": Value(dtype="string", id=None),
+                    "question": Value(dtype="string", id=None),
+                    "original_context": Value(dtype="string", id=None),
+                    "answers": Value(dtype="bool", id=None)  # answers를 bool로 설정
+                }
+            )
+
+            datasets = DatasetDict({"validation": Dataset.from_pandas(df, features=f)})
+            cnt = 0
+            for i in datasets['validation']['answers']:
+                if i == True:
+                    cnt += 1
+            print('acc :',cnt / len(datasets['validation']['answers']))
+
+        return datasets
 
 
 # -------------------------------아래는 BM25Search 을 사용하는 부분입니다.-----------------------------------------
@@ -469,8 +769,9 @@ class BM25Search:
                 pickle.dump(self.p_embedding, file)
             print('임베딩을 피클 형태로 저장했습니다.')
 
-    def get_relevant_doc_bulk_bm25(self, queries):
-        k = self.args.k
+    def get_relevant_doc_bulk_bm25(self, queries, k = None, mode = None):
+        if k == None:
+            k = self.args.k
         total_scores = []
         total_indices = []
 
@@ -478,11 +779,16 @@ class BM25Search:
             # BERT 토크나이저를 사용하여 쿼리 토크나이즈
             tokenized_query = self.tokenizer.tokenize(query)
             doc_scores = self.bm25.get_scores(tokenized_query)
+            if mode == 'ensemble':
+                total_scores.append(doc_scores[:k])
+                continue
             sorted_scores_idx = np.argsort(doc_scores)[::-1]
             total_scores.append(doc_scores[sorted_scores_idx][:k].tolist())
             total_indices.append(sorted_scores_idx[:k].tolist())
-
-        return total_scores, total_indices
+        if mode == 'ensemble':
+            return total_scores
+        else:
+            return total_scores, total_indices
 
     def search_query_bm25(self):
         test_dataset = load_from_disk(self.args.test_data_route)

@@ -38,9 +38,8 @@ class DenseDataset(torchDataset):
             'q_input_ids': self.q_input_ids[idx],
             'q_attention_mask': self.q_attention_mask[idx],
             'q_token_type_ids': self.q_token_type_ids[idx],
-            'labels' : self.labels[idx]
-        }
-    
+            'labels' : self.labels}
+        
 #  --------------------------MRC 모델을 학습하기 위한 mrc_dataset을 선언하는 부분입니다-----------------------------------------------------------
 
 
@@ -222,8 +221,33 @@ class prepare_dataset:
         return test_dataset, test_examples
 
 # -----------------------------------Dense Embedding을 위한 데이터셋을 선언하는 부분입니다--------------------------------------------------------
+    def test_dense_train_dataset(self, mode = 'train'):
+        if mode == 'train':
+            training_dataset = self.dataset['train']
+        elif mode == 'valid':
+            training_dataset = self.dataset['validation']
 
+        p_tokenizer = transformers.AutoTokenizer.from_pretrained(self.args.model_name)
+        q_tokenizer = transformers.AutoTokenizer.from_pretrained(self.args.model_name)
 
+        q_seqs = q_tokenizer(training_dataset['question'], padding='max_length', 
+                        truncation=True, return_tensors='pt')
+        p_seqs = p_tokenizer(training_dataset['context'], padding='max_length', 
+                        truncation=True, return_tensors='pt')
+        labels = torch.arange(0, self.args.per_device_train_batch_size).long()
+
+        train_dataset = DenseDataset(
+            p_seqs['input_ids'],
+            p_seqs['attention_mask'],
+            p_seqs['token_type_ids'],
+            q_seqs['input_ids'],
+            q_seqs['attention_mask'],
+            q_seqs['token_type_ids'],
+            labels
+        )
+
+        return train_dataset
+        
     def get_dense_train_dataset(self):
         training_dataset = self.dataset['train']
         num_neg = self.args.num_neg
@@ -236,7 +260,8 @@ class prepare_dataset:
 
         corpus = list(dict.fromkeys([v['text'] for v in wiki.values()]))
 
-        tokenizer = transformers.AutoTokenizer.from_pretrained(self.args.model_name)
+        p_tokenizer = transformers.DPRContextEncoderTokenizerFast.from_pretrained(self.args.model_name)
+        q_tokenizer = transformers.DPRQuestionEncoderTokenizerFast.from_pretrained(self.args.model_name)
 
         for context in training_dataset['context']:
             while True:
@@ -255,9 +280,9 @@ class prepare_dataset:
 
 
 
-        q_seqs = tokenizer(training_dataset['question'], padding='max_length', 
+        q_seqs = q_tokenizer(training_dataset['question'], padding='max_length', 
                         truncation=True, return_tensors='pt')
-        p_seqs = tokenizer(p_with_neg, padding='max_length', truncation=True,
+        p_seqs = p_tokenizer(p_with_neg, padding='max_length', truncation=True,
                         return_tensors='pt')
         max_len = p_seqs['input_ids'].size(-1)
         
@@ -291,7 +316,9 @@ class prepare_dataset:
 
         corpus = list(dict.fromkeys([v['text'] for v in wiki.values()]))
 
-        tokenizer = transformers.AutoTokenizer.from_pretrained(self.args.model_name)
+        p_tokenizer = transformers.DPRContextEncoderTokenizerFast.from_pretrained(self.args.model_name)
+        q_tokenizer = transformers.DPRQuestionEncoderTokenizerFast.from_pretrained(self.args.model_name)
+
 
         for context in validation_dataset['context']:
             while True:
@@ -309,9 +336,9 @@ class prepare_dataset:
                     break  # 반복문 종료 (새로운 부정 예시 선택이 필요 없음)
 
 
-        q_seqs = tokenizer(validation_dataset['question'], padding='max_length', 
+        q_seqs = q_tokenizer(validation_dataset['question'], padding='max_length', 
                         truncation=True, return_tensors='pt')
-        p_seqs = tokenizer(p_with_neg, padding='max_length', truncation=True,
+        p_seqs = p_tokenizer(p_with_neg, padding='max_length', truncation=True,
                         return_tensors='pt')
 
         max_len = p_seqs['input_ids'].size(-1)
@@ -330,10 +357,15 @@ class prepare_dataset:
 
         return valid_dataset
     
-    def get_dense_queries_for_search(self):
-        test_dataset = load_from_disk(self.args.test_data_route)
-        query_vectors = self.tokenizer(test_dataset['validation']['question'], padding='max_length', 
+    def get_dense_queries_for_search(self, mode = 'test'):
+        q_tokenizer = transformers.AutoTokenizer.from_pretrained(self.args.model_name)
+        if mode == 'test':
+            test_dataset = load_from_disk(self.args.test_data_route)['validation']
+        elif mode == 'eval':
+            test_dataset = self.dataset['validation']
+        query_vectors = q_tokenizer(test_dataset['question'], padding='max_length', 
                         truncation=True, return_tensors='pt')
+        
         return test_dataset, query_vectors
 
     def get_context(self):

@@ -42,8 +42,9 @@ class Extraction_based_MRC:
             do_eval = True,
             per_device_eval_batch_size = self.args.per_device_eval_batch_size,  
         )
-        model_path = self.output_dir
-        lastcheckpt = glob(model_path + '/checkpoint-*')[-1]
+        model_path = self.args.output_dir
+        checkpoints = sorted(glob(model_path + '/checkpoint-*'), key=lambda x: int(x.split('-')[-1]), reverse=True)
+        lastcheckpt = checkpoints[0]
     
         trainer_state_file = os.path.join(lastcheckpt, 'trainer_state.json')
         print('제일 마지막 checkpoint :',trainer_state_file)
