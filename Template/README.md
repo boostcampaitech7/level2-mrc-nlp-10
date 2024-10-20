@@ -32,6 +32,9 @@ train 데이터만 분할하여 사용하며, val데이터는 남깁니다.
 ### 3. 모델 로드
 model.load_model을 사용하면 output_dir 폴더의 체크포인트 숫자를 기준으로 정렬한뒤, 가장 마지막 체크포인트의 trainer.state 폴더에 들어가 best_checkpoint를 찾아 그 폴더의 내용을 로드합니다.
 (하드코딩이긴 한데 이거말고 방법안떠오름)
+근데 모델을 로드 후 sequential reranking을 하면 어째서인지 성능이 떨어집니다. (진짜 모르겠음)
+cross reranking은 변함없이 잘 됩니다. 
+이유는 좀 더 생각해보고 고쳐보겠습니다.
 
 ### 4. 모델 평가 기능 추가
 model.search(mode = 'eval')

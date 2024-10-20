@@ -270,6 +270,7 @@ class Dense_embedding_retrieval:
         if self.args.use_wandb:
             self.start_wandb()
         self.datas = prepare_dataset(self.args)
+        self.besk_checkpoint = None
 
 
     def compute_metrics(self,eval_preds):
@@ -350,7 +351,9 @@ class Dense_embedding_retrieval:
  
         # best model checkpoint 로드
         self.model = Dense_embedding_retrieval_model(best_checkpoint)  # 이 부분에서 로딩
+        self.best_checkpoint = best_checkpoint
         self.model.to(self.device)
+        print("bestmodel 체크포인트로 모델과 Trainer가 로드되었습니다.")
 
 
     def train(self):
@@ -556,8 +559,7 @@ class Dense_embedding_retrieval:
         BMtotal = []
         passages = self.datas.get_context()
         BM25 = BM25Search()
-        tokenizer = transformers.AutoTokenizer.from_pretrained(self.args.model_name)
-
+        tokenizer = transformers.AutoTokenizer.from_pretrained(self.best_checkpoint if self.besk_checkpoint != None else self.args.model_name)
         # get_relevant_doc_bulk_bm25 메서드를 사용하여 문서 점수와 인덱스 가져오기
         _, doc_indices = BM25.get_relevant_doc_bulk_bm25(queries, k = 100)
         self.doc_indices = doc_indices
@@ -571,10 +573,12 @@ class Dense_embedding_retrieval:
                 'context': [passages[pid] for pid in doc_indices[idx]],
                 # 'doc_scores': doc_scores[idx],  # 점수 추가
             }
-            if 'context' in example.keys() and 'answers' in example.keys():
-                tmp['answers'] = example['answers']
+            if "context" in example.keys():
+                tmp["original_context"] = example["context"]
+                ground_truth_passage = example["context"]
+                # 정답이 retrieved passages에 포함되는지 여부를 확인
             BMtotal.append(tmp)
-
+        self.bm = BMtotal
         del BM25 # OOM 방지
         gc.collect()
 
@@ -583,25 +587,30 @@ class Dense_embedding_retrieval:
         k = self.args.top_k
         Densetotal = []
         with torch.no_grad():
-            q_embs = self.model.q_model(**query_vec).cpu()
+            q_embs = self.model.q_model(**query_vec).cpu() # (examples, 512)
             for idx, example in enumerate(tqdm(BMtotal, desc='sequential reranking')):
                 # context에 대한 배치 처리
                 batch_input = tokenizer(
                     example['context'], padding = 'max_length', truncation = True, return_tensors = 'pt'
-                ).to(self.device) # (100, )
+                ).to(self.device) # (100, 512)
                 p_embs = self.model.p_model(**batch_input).cpu() # (100, 768)
                 # 유사도 계산
-                sim_scores = torch.matmul(q_embs, p_embs.T) (1,100)
-                topk_indices = torch.argsort(sim_scores, dim=1, descending=True)[:, :k]
-                    
+                sim_scores = torch.matmul(q_embs[idx].view(1,-1), p_embs.T) # (1,100)
+                topk_indices = torch.argsort(sim_scores, dim=1, descending=True)[:, :k] # (1, k)
                 # top-k 문서 가져오기
                 tmp = {
                     'question': example['question'],
                     'id': example['id'],
-                    'context': ' '.join([passages[pid] for pid in topk_indices[0]])
-                }
-                Densetotal.append(tmp)
+                    'context': ' '.join([example['context'][pid] for pid in topk_indices[0]])
+                    }
+                if "original_context" in example.keys():
+                    tmp["original_context"] = example["original_context"]
+                    ground_truth_passage = example["original_context"]
+                    retrieved_passages = [example['context'][pid] for pid in topk_indices[0]]
+                    # 정답이 retrieved passages에 포함되는지 여부를 확인
+                    tmp["answers"] = ground_truth_passage in retrieved_passages
 
+                Densetotal.append(tmp)
         self.dense = Densetotal
         df = pd.DataFrame(Densetotal)
 
