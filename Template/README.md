@@ -72,6 +72,15 @@ small 모델 기준 dpr단독으로는 69.3, cross reranking은 92.몇인지기�
 현재 MRC.py에 Generative MRC model이 구현돼 있지만, 돌려본 결과, 성능이 좋지 않았습니다.
 성능이 좋지 않은 이유는 다음과 같습니다.
 
+1. 훈련 단계에서
+question : 뫄뫄 context : 뫄뫄 로 입력이 들어오는데, extraction based mrc 모델에서는 context가 길면 잘라서 다음 input에 넣어주는 반면,
+generative mrc model의 train data는 그러한 과정이 없습니다. 그래서 문서가 아무리 길어도 512자로 짤리더군요.
+이게 아마 성능이 안나오는 이유일 듯 싶습니다.
+그래서 train dataset이 길면 잘라서 다음 input에 넣고, answer이 알맞게 들어가는 전처리 부분을 만들어 주셨으면 좋겠습니다. (아마 매우 어렵겠지만)
+
+2. Generative MRC Model은 기본적으로 파라미터가 커서 base 모델만 사용하더라도 OOM이 뜹니다.
+그래서 small model을 사용할니다. 학습 단계에서도 validation 부분을 보면 성능이 좋지는 않았습니다 ㅠ
+
 ### 4. TFIDF retrieval / BM25 retrieval 의 eval 매트릭 구현
 현재 Dense retrieval을 제외하고 BM25, TFIDF는 validation 240개의 데이터셋에 대해 문서를 떠올리고 얼마나 맞췄는지에 대한 acc를 구할 수 없는 상태입니다.
 이를 구할 수 있도록 만들어주셨으면 좋겠습니다. (그래야 성능비교가 되니까)
@@ -96,14 +105,6 @@ MRC 모델의 성능을 향상시켜보고싶은데 구조를 바꾸는건 어�
 이거는 왜이렇게 했냐 이런거는 잘 대답해드릴 수 있습니다 ㅋㅋ
 진짜 사소한거도 괜찮습니다. (내가 여태 며칠동안 안된다찡찡댄건 다 사소한 이유때문이었음)
 
-1. 훈련 단계에서
-question : 뫄뫄 context : 뫄뫄 로 입력이 들어오는데, extraction based mrc 모델에서는 context가 길면 잘라서 다음 input에 넣어주는 반면,
-generative mrc model의 train data는 그러한 과정이 없습니다. 그래서 문서가 아무리 길어도 512자로 짤리더군요.
-이게 아마 성능이 안나오는 이유일 듯 싶습니다.
-그래서 train dataset이 길면 잘라서 다음 input에 넣고, answer이 알맞게 들어가는 전처리 부분을 만들어 주셨으면 좋겠습니다. (아마 매우 어렵겠지만)
-
-2. Generative MRC Model은 기본적으로 파라미터가 커서 base 모델만 사용하더라도 OOM이 뜹니다.
-그래서 small model을 사용할니다. 학습 단계에서도 validation 부분을 보면 성능이 좋지는 않았습니다 ㅠ
 
 아마 난이도가 많이 높고 성능 기대값이 높지 않은 만큼, 제일 마지막의 수로 남겨둘 듯 싶습니다.
 # 해결 된 것들
