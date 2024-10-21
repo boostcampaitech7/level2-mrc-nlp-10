@@ -25,12 +25,13 @@ class Extraction_based_MRC:
         self.config = transformers.AutoConfig.from_pretrained(self.args.model_name)
         self.tokenizer = transformers.AutoTokenizer.from_pretrained(self.args.model_name)
         self.model = transformers.AutoModelForQuestionAnswering.from_pretrained(self.args.model_name,
-                                                            config = self.config, trust_remote_code = True)
+                                                            config = self.config,
+                                                             trust_remote_code = True)
         self.datas = prepare_dataset(self.args)
         self.datasets = self.datas.get_pure_dataset()
         self.metric = load_metric("squad")
         self.trainer = None
-        self.output_dir = self.args.model_path + self.args.model_name.split('/')[-1] # 모델 이름을 바탕으로 저장 경로가 생성됩니다.
+        self.output_dir = self.args.model_path + '_' + self.args.model_name.split('/')[-1] # 모델 이름을 바탕으로 저장 경로가 생성됩니다.
         if self.args.use_wandb:
             self.start_wandb()
 
@@ -41,8 +42,9 @@ class Extraction_based_MRC:
             do_train = False,
             do_eval = True,
             per_device_eval_batch_size = self.args.per_device_eval_batch_size,  
+            fp16 = True
         )
-        model_path = self.args.output_dir
+        model_path = self.args.output_dir + self.args.model_name.split('/')[-1]
         checkpoints = sorted(glob(model_path + '/checkpoint-*'), key=lambda x: int(x.split('-')[-1]), reverse=True)
         lastcheckpt = checkpoints[0]
     
@@ -115,6 +117,7 @@ class Extraction_based_MRC:
             logging_dir='./logs',  # 로그 저장 경로
             logging_strategy = "epoch",
             load_best_model_at_end = True,
+            fp16 = True
         )
 
         data_collator = DataCollatorWithPadding(
@@ -157,6 +160,10 @@ class Extraction_based_MRC:
         
 
     def kfold_train(self, train_dataset = None, eval_dataset = None):
+        output_dir = self.output_dir + '_kfold'
+        self.training_args.output_dir = output_dir
+
+
         if train_dataset == None and eval_dataset == None:
             print('train_dataset을 넣지 않아 기존에 주어진 train dataset으로 학습합니다.')
             print('eval_dataset을 넣지 않아 기존에 주어진 eval_dataset으로 평가합니다.')
@@ -179,6 +186,8 @@ class Extraction_based_MRC:
             self.trainer.eval_examples = eval_examples
             print(eval_examples)
             print(self.datas.get_mrc_eval_dataset(eval))
+            self.model.resize_token_embeddings(len(self.tokenizer))
+
             self.trainer.train()
             
     def start_wandb(self):
