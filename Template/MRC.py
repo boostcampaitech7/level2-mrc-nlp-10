@@ -12,6 +12,7 @@ from glob import glob
 import numpy as np
 import nltk
 import pandas as pd
+import torch
 from sklearn.model_selection import KFold
 nltk.download('punkt')
 import warnings
@@ -45,9 +46,10 @@ class Extraction_based_MRC:
             fp16 = True
         )
         model_path = self.args.output_dir + self.args.model_name.split('/')[-1]
+        
         checkpoints = sorted(glob(model_path + '/checkpoint-*'), key=lambda x: int(x.split('-')[-1]), reverse=True)
         lastcheckpt = checkpoints[0]
-    
+     
         trainer_state_file = os.path.join(lastcheckpt, 'trainer_state.json')
         print('제일 마지막 checkpoint :',trainer_state_file)
         if os.path.exists(trainer_state_file):
@@ -158,6 +160,8 @@ class Extraction_based_MRC:
         self.trainer.eval_dataset = eval_dataset
         self.trainer.train()
         
+        torch.cuda.empty_cache()
+        
 
     def kfold_train(self, train_dataset = None, eval_dataset = None):
         output_dir = self.output_dir + '_kfold'
@@ -189,7 +193,9 @@ class Extraction_based_MRC:
             self.model.resize_token_embeddings(len(self.tokenizer))
 
             self.trainer.train()
-            
+        
+        torch.cuda.empty_cache()
+
     def start_wandb(self):
         os.system("rm -rf /root/.cache/wandb")
         os.system("rm -rf /root/.config/wandb")

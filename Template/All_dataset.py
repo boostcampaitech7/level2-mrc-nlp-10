@@ -153,10 +153,16 @@ class prepare_dataset:
         # 각 샘플에서 'example_id'와 'offset_mapping' 제거
             example.pop("example_id", None)
             example.pop("offset_mapping", None)
+            if 'roberta' in self.args.model_name:
+                example.pop('token_type_ids', None)
             return example
 
             # 데이터셋에 일괄 적용
         train_dataset = train_dataset.map(remove_keys)
+        if 'roberta' in self.args.model_name:
+            print('roberta 모델이 발견되어 train dataset에서 token type ids를 삭제합니다')
+
+        
         return train_dataset
         
     def prepare_validation_features(self, examples):
@@ -168,6 +174,7 @@ class prepare_dataset:
             stride = self.args.doc_stride,
             return_overflowing_tokens = True,
             return_offsets_mapping = True,
+            return_token_type_ids = True,
             padding = "max_length",
         )
 
@@ -200,6 +207,14 @@ class prepare_dataset:
             remove_columns = column_names,
             load_from_cache_file = False,
         )
+        def remove_keys(example):
+            if 'roberta' in self.args.model_name:
+                example.pop('token_type_ids', None)
+            return example
+        
+        if 'roberta' in self.args.model_name.lower():
+            eval_dataset = eval_dataset.map(remove_keys)
+            print('roberta 모델이 발견되어 eval dataset에서 token type ids를 지웁니다.')
         return eval_dataset
     
     
@@ -218,6 +233,18 @@ class prepare_dataset:
         )
         if 'validation' in test_dataset.keys():
             test_dataset = test_dataset['validation']
+
+        def remove_keys(example):
+        # 각 샘플에서 'example_id'와 'offset_mapping' 제거
+            example.pop("example_id", None)
+            example.pop("offset_mapping", None)
+            if 'roberta' in self.args.model_name:
+                example.pop('token_type_ids', None)
+            return example
+        if 'roberta' in self.args.model_name.lower():
+            eval_dataset = eval_dataset.map(remove_keys)
+            print('roberta 모델이 발견되어 test dataset에서 token type ids를 지웁니다.')
+
         return test_dataset, test_examples
 
 # -----------------------------------Dense Embedding을 위한 데이터셋을 선언하는 부분입니다--------------------------------------------------------

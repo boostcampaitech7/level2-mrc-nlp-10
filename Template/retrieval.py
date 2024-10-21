@@ -375,6 +375,8 @@ class Dense_embedding_retrieval:
             self.trainer.train_dataset = torch.utils.data.Subset(kfold_dataset, train_idx)  # Subset으로 변경
             self.trainer.eval_dataset = torch.utils.data.Subset(kfold_dataset, valid_idx)  # Subset으로 변경
             self.trainer.train()
+            
+        torch.cuda.empty_cache()
 
 
     def build_faiss(self):
