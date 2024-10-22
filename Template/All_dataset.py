@@ -219,11 +219,12 @@ class prepare_dataset:
     
     
     def get_mrc_test_dataset(self, test_dataset):
-        column_names = test_dataset['validation'].column_names
         if 'validation' in test_dataset.keys():
             test_examples = test_dataset['validation']
+            column_names = test_dataset['validation'].column_names
         else:
             test_examples = test_dataset
+            column_names = test_dataset.column_names
         test_dataset = test_dataset.map(
             self.prepare_validation_features,
             batched = True,

@@ -5,11 +5,11 @@ from typing import Optional
 @dataclass
 class TF_IDF_retrieval_arguments:
     data_route: Optional[str] = field(
-        default = '/data/ephemeral/data/train_dataset',
+        default = '/data/ephemeral/home/practice/data/train_dataset',
         metadata = {'help' : "데이터셋 위치입니다."},
     )
     test_data_route : Optional[str] = field(
-        default = '/data/ephemeral/data/test_dataset',
+        default = '/data/ephemeral/home/practice/data/test_dataset',
         metadata = {'help' : '테스트 데이터셋 위치입니다.'}
     )
     k : int = field(
@@ -38,11 +38,11 @@ class TF_IDF_retrieval_arguments:
 @dataclass
 class BM25_retrieval_arguments:
     data_route: Optional[str] = field(
-        default='/data/ephemeral/data/train_dataset/',
+        default='/data/ephemeral/home/practice/data/train_dataset',
         metadata={'help': "데이터셋 위치입니다."}
     )
     test_data_route: Optional[str] = field(
-        default='/data/ephemeral/home/level2-mrc-nlp-10/data/test_dataset',
+        default='/data/ephemeral/home/practice/data/test_dataset',
         metadata={'help': '테스트 데이터셋 위치입니다.'}
     )
     k: int = field(
@@ -90,7 +90,7 @@ class Dense_search_retrieval_arguments:
     )
 
     model_name : Optional[str] = field(
-        default = "klue/roberta-small",
+        default = "klue/roberta-large",
         metadata = {'help': "모델이름 입니다."}
     )
     wiki_route : str = field(
@@ -110,7 +110,7 @@ class Dense_search_retrieval_arguments:
         metadata = {'help' : 'Kfold의 fold 수를 정합니다.'}
     )
     epoch_for_kfold : int = field(
-        default = 1,
+        default = 2,
         metadata = {'help' : '교차검증을 통해 학습을 할 때의 epoch 수입니다.'}
     )
     per_device_train_batch_size : int = field(
@@ -167,11 +167,11 @@ class Extraction_based_MRC_arguments:
         metadata = {'help' : '긴 컨텍스트를 나눌 때 앞의 컨텍스트와 얼마나 겹치게 시퀀스를 구성할 것인지 정합니다.'}
     )
     model_name : str = field(
-        default = "klue/bert-base",
+        default = "klue/roberta-large",
         metadata = {'help' : '훈련에 사용할 모델을 정의합니다.'}
     )
     model_path : str = field(
-        default = '/data/ephemeral/home/practice/Template/Extraction_based_MRC_outputs',
+        default = './Extraction_based_MRC_outputs',
         metadata = {'help' : 'Extraction_model의 훈련 결과를 어디에 저장할지 정합니다.'}
     )
     retrieval_results_route : Optional[str] = field(
@@ -243,7 +243,7 @@ class Extraction_based_MRC_arguments:
         metadata = {'help' : 'Kfold의 fold 수를 정합니다.'}
     )
     epoch_for_kfold : int = field(
-        default = 1,
+        default = 2,
         metadata = {'help' : '교차검증을 통해 학습을 할 때의 epoch 수입니다.'}
     )
 #  ------------------------------------------------------------------
@@ -252,11 +252,11 @@ class Extraction_based_MRC_arguments:
 @dataclass
 class Generation_based_MRC_arguments:
     data_route : Optional[str] = field(
-        default = '/data/ephemeral/data/train_dataset/',
+        default = '/data/ephemeral/home/practice/data/train_dataset',
         metadata = {'help' : "훈련 데이터셋 위치입니다."},
     )
     test_data_route : Optional[str] = field(
-        default = '/data/ephemeral/data/test_dataset/',
+        default = '/data/ephemeral/home/practice/data/test_dataset',
         metadata = {'help' : '테스트 데이터셋 위치입니다.'}
     )
     retrieval_results_route : Optional[str] = field(
@@ -292,7 +292,7 @@ class Generation_based_MRC_arguments:
         metadata = {'help': "패딩 방식을 설정합니다 ('max_length' 또는 'longest')."}
     )
     preprocessing_num_workers: int = field(
-        default = 1,
+        default = None,
         metadata = {'help': "데이터 전처리 시 사용되는 워커(worker) 수입니다."}
     )
     num_beams: int = field(
