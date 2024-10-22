@@ -45,7 +45,8 @@ class Extraction_based_MRC:
             per_device_eval_batch_size = self.args.per_device_eval_batch_size,  
             fp16 = True
         )
-        model_path = self.args.output_dir + self.args.model_name.split('/')[-1]
+        model_path = self.output_dir
+        print(model_path)
         
         checkpoints = sorted(glob(model_path + '/checkpoint-*'), key=lambda x: int(x.split('-')[-1]), reverse=True)
         lastcheckpt = checkpoints[0]
