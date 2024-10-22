@@ -237,13 +237,11 @@ class prepare_dataset:
 
         def remove_keys(example):
         # 각 샘플에서 'example_id'와 'offset_mapping' 제거
-            example.pop("example_id", None)
-            example.pop("offset_mapping", None)
             if 'roberta' in self.args.model_name:
                 example.pop('token_type_ids', None)
             return example
         if 'roberta' in self.args.model_name.lower():
-            eval_dataset = eval_dataset.map(remove_keys)
+            test_dataset = test_dataset.map(remove_keys)
             print('roberta 모델이 발견되어 test dataset에서 token type ids를 지웁니다.')
 
         return test_dataset, test_examples
