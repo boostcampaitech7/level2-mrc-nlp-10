@@ -141,7 +141,7 @@ class Extraction_based_MRC:
             max_answer_length=self.args.max_answer_length,
             null_score_diff_threshold=0.0,
             output_dir=self.output_dir,
-            is_world_process_zero=self.trainer.is_world_process_zero(),
+            is_world_process_zero=True,
         )
         
         formatted_predictions = [{"id": k, "prediction_text": v} for k, v in predictions.items()]
@@ -250,22 +250,29 @@ class Extraction_based_MRC:
             self.trainer.save_model(self.output_dir)
             print(f"Model {model_name} saved to {self.output_dir}")
             
-
+            
     def ensemble_inference(self, test_dataset, model_paths=None):
-        # Check for model paths
+        # 초기 설정
+        self.training_args = TrainingArguments(
+            output_dir=self.output_dir,
+            # per_device_eval_batch_size=self.args.per_device_eval_batch_size,
+            per_device_eval_batch_size=2,
+            do_predict=True,
+            disable_tqdm=False,
+            remove_unused_columns=False,
+            fp16=False  # fp16 설정
+        )
+        
+        # 모델 경로 확인
         if model_paths is None:
             raise ValueError("You must provide a list of model paths for ensembling.")
 
-        # Ensure test_dataset is in the right format
-        if isinstance(test_dataset, DatasetDict):
-            test_dataset = test_dataset['validation']  # Extract 'validation' split if it's a DatasetDict
-            print("Using 'validation' split from test_dataset.")
-        elif isinstance(test_dataset, Dataset):
-            print("Using Dataset object for test_dataset.")
-        else:
-            raise TypeError(f"test_dataset is of unexpected type: {type(test_dataset)}")
+        # 필수 컬럼 확인
+        required_columns = ['id', 'context', 'question']
+        if not all(col in test_dataset.column_names for col in required_columns):
+            raise ValueError(f"test_dataset must contain the following columns: {required_columns}")
 
-        # Check for None values in the dataset and ensure fields are strings
+        # None 값 및 비문자열 필드 제거
         test_dataset = test_dataset.filter(
             lambda x: x['context'] is not None 
                     and x['question'] is not None
@@ -274,67 +281,68 @@ class Extraction_based_MRC:
         )
         print("Filtered dataset to remove None and non-string entries.")
 
-        # The test_examples are directly taken from the test_dataset
-        test_examples = test_dataset  # 'test_dataset' contains context, id, and question
+        # 테스트 예제 가져오기
+        test_examples = test_dataset
 
         all_start_logits = []
         all_end_logits = []
 
-        # Loop through each model for ensemble inference
+        # 각 모델에 대해 추론 수행
         for model_path in model_paths:
             print(f"Loading model from {model_path} for inference")
 
-            # 모델 로드 디버깅용 
             try:
-                model = transformers.AutoModelForQuestionAnswering.from_pretrained(model_path, trust_remote_code=True)
+                model = transformers.AutoModelForQuestionAnswering.from_pretrained(
+                    model_path, 
+                    trust_remote_code=True
+                ).to('cuda' if torch.cuda.is_available() else 'cpu')
                 tokenizer = transformers.AutoTokenizer.from_pretrained(model_path)
             except Exception as e:
                 print(f"Failed to load model from {model_path}. Error: {e}")
                 continue
 
+            # 테스트 데이터 토크나이징
             test_dataset_prepared = test_dataset.map(
                 lambda x: tokenizer(
-                    x['question'], x['context'],
-                    padding="max_length",
-                    truncation=True,
+                    x['question'],
+                    x['context'],
+                    truncation="only_second",
                     max_length=self.args.max_seq_length,
-                    return_offsets_mapping=True  # 추가
+                    stride=self.args.doc_stride,
+                    return_overflowing_tokens=True,
+                    return_offsets_mapping=True,
+                    padding="max_length"
                 ),
-                batched=True
+                batched=True,
+                remove_columns=test_dataset.column_names  # 원본 컬럼 제거
             )
 
-            # Verify tokenization
-            try:
-                print("Sample tokenized example:", test_dataset_prepared[0])
-            except Exception as e:
-                print(f"Error printing tokenized example: {e}")
-                continue
+            # 모델 입력에 필요한 컬럼만 유지
+            columns_to_keep = [col for col in test_dataset_prepared.column_names if col in ['input_ids', 'attention_mask', 'token_type_ids']]
+            test_dataset_prepared.set_format(type='torch', columns=columns_to_keep)
 
-            # Define inference arguments
-            inference_args = TrainingArguments(
-                output_dir=os.path.join(model_path, "inference"),
-                per_device_eval_batch_size=self.args.per_device_eval_batch_size,
-                do_predict=True,
-                disable_tqdm=False,
-                remove_unused_columns=False,
+            # 데이터 콜레이터 설정
+            data_collator = DataCollatorWithPadding(
+                tokenizer,
+                pad_to_multiple_of=8 if torch.cuda.is_available() and self.training_args.fp16 else None
             )
 
-            # Set up the trainer for inference
+            # Trainer 설정
             trainer = QuestionAnsweringTrainer(
                 model=model,
-                args=inference_args,
+                args=self.training_args,
                 tokenizer=tokenizer,
-                data_collator = DataCollatorWithPadding(
-                    self.tokenizer,
-                    pad_to_multiple_of=8 if self.training_args.fp16 else None
-                ),
+                data_collator=data_collator,
                 post_process_function=self.post_processing_function,
                 compute_metrics=self.compute_metrics,
             )
 
-            # Perform inference and collect the start and end logits
+            # 추론 수행
             try:
-                predictions = trainer.predict(test_dataset=test_dataset_prepared, test_examples=test_examples)
+                predictions = trainer.predict(
+                    test_dataset=test_dataset_prepared,
+                    test_examples=test_examples
+                )
                 start_logits, end_logits = predictions.predictions
                 all_start_logits.append(start_logits)
                 all_end_logits.append(end_logits)
@@ -342,22 +350,23 @@ class Extraction_based_MRC:
                 print(f"Error during prediction with model {model_path}: {e}")
                 continue
 
-            # Release memory used by the model and trainer
+            # 메모리 정리
             del model
             del trainer
             torch.cuda.empty_cache()
 
+        # 로그 수집 여부 확인
         if not all_start_logits or not all_end_logits:
             raise RuntimeError("No logits were collected. Check if models are loaded correctly.")
 
-        # Average the logits across all models for ensemble inference
+        # 로그 평균화
         avg_start_logits = np.mean(all_start_logits, axis=0)
         avg_end_logits = np.mean(all_end_logits, axis=0)
 
-        # Post-process the predictions using the averaged logits
+        # 예측 후처리
         final_predictions = postprocess_qa_predictions(
             examples=test_examples,
-            features=test_dataset_prepared,  # Process without offset_mapping
+            features=test_dataset_prepared,
             predictions=(avg_start_logits, avg_end_logits),
             version_2_with_negative=False,
             n_best_size=self.args.n_best_size,
@@ -367,16 +376,21 @@ class Extraction_based_MRC:
             is_world_process_zero=True,
         )
 
-        # Convert predictions to DataFrame and save results
-        self.extraction_mrc_results = pd.DataFrame.from_dict(final_predictions, orient='index', columns=['prediction_text'])
+        # 결과 저장
+        self.extraction_mrc_results = pd.DataFrame.from_dict(
+            final_predictions, 
+            orient='index', 
+            columns=['prediction_text']
+        )
         result_dict = self.extraction_mrc_results['prediction_text'].to_dict()
 
-        # Save the results as a JSON file
-        if not os.path.exists("predict_result"):
-            os.makedirs("predict_result")
-            print("Created 'predict_result' directory.")
+        # 결과 저장 디렉토리 생성
+        os.makedirs("predict_result", exist_ok=True)
 
+        # JSON 파일로 저장
         output_file = f"predict_result/Extraction_mrc_ensemble_output_{self.args.model_name.split('/')[-1]}.json"
         with open(output_file, 'w', encoding='utf-8') as json_file:
             json.dump(result_dict, json_file, ensure_ascii=False, indent=4)
-        print(f"Results saved to {output_file}.")
+        print(f"Results saved to {output_file}")
+
+        return result_dict

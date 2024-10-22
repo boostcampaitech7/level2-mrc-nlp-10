@@ -20,6 +20,17 @@ warnings.filterwarnings('ignore')
 from tqdm import tqdm
 import json
 
+class CustomDataCollatorWithPadding(DataCollatorWithPadding):
+    def __call__(self, features):
+        # 'offset_mapping'과 'overflow_to_sample_mapping' 필드를 제거
+        features = [
+            {k: v for k, v in feature.items() if k not in ['offset_mapping', 'overflow_to_sample_mapping']}
+            for feature in features
+        ]
+        return super().__call__(features)
+    
+    
+
 class Extraction_based_MRC:
     def __init__(self):
         self.args = Extraction_based_MRC_arguments()
