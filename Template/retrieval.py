@@ -293,21 +293,23 @@ class Dense_embedding_retrieval:
         torch.cuda.empty_cache()
         data_collator = DefaultDataCollator()
         self.training_args = TrainingArguments(
-            output_dir = self.output_dir,
-            num_train_epochs = self.args.num_train_epochs,
-            gradient_accumulation_steps=2,
+            output_dir=self.output_dir,
+            num_train_epochs=self.args.num_train_epochs,
+            gradient_accumulation_steps=1,
             overwrite_output_dir=True,
-            per_device_train_batch_size = self.args.per_device_train_batch_size,
-            per_device_eval_batch_size = self.args.per_device_train_batch_size,
-            learning_rate = self.args.learning_rate,
-            save_strategy = 'epoch',
-            logging_steps = 30,
-            fp16 = True, # FP16 (16-bit floating point)으로 수행하면 메모리 사용량이 줄어듭니다.
-            evaluation_strategy = "epoch",  
-            logging_dir = './logs',
-            load_best_model_at_end = True,
-            do_eval = True,
-            weight_decay = 0.01,
+            per_device_train_batch_size=self.args.per_device_train_batch_size,
+            per_device_eval_batch_size=self.args.per_device_eval_batch_size,
+            learning_rate=self.args.learning_rate,
+            evaluation_strategy="steps",
+            eval_steps=132,  # 평가 주기를 327로 설정
+            save_strategy="steps",
+            save_steps=132,  # 저장 주기를 327로 설정
+            logging_steps=30,
+            fp16=True,
+            logging_dir='./logs',
+            load_best_model_at_end=True,
+            do_eval=True,
+            weight_decay=0.01,
         )
         if self.args.use_wandb:
             self.training_args.report_to = ["wandb"]
@@ -369,11 +371,12 @@ class Dense_embedding_retrieval:
         kfold_dataset = self.datas.test_dense_train_dataset(mode = 'train')
 
         self.training_args.num_train_epochs = self.args.epoch_for_kfold
-        self.training_args.dataloader_drop_last = True
 
 
         for fold, (train_idx, valid_idx) in enumerate(kf.split(kfold_dataset)):
             print(f'----------------- fold {fold + 1} -------------------------')
+            self.get_trainer()
+            self.training_args.num_train_epochs = self.args.epoch_for_kfold
 
             self.trainer.train_dataset = torch.utils.data.Subset(kfold_dataset, train_idx)  # Subset으로 변경
             self.trainer.eval_dataset = torch.utils.data.Subset(kfold_dataset, valid_idx)  # Subset으로 변경
