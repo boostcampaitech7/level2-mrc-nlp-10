@@ -271,6 +271,7 @@ class Dense_embedding_retrieval:
             self.start_wandb()
         self.datas = prepare_dataset(self.args)
         self.besk_checkpoint = None
+        self.output_dir = self.args.output_dir + '_' + self.args.model_name.split('/')[-1]
 
 
     def compute_metrics(self,eval_preds):
@@ -292,8 +293,10 @@ class Dense_embedding_retrieval:
         torch.cuda.empty_cache()
         data_collator = DefaultDataCollator()
         self.training_args = TrainingArguments(
-            output_dir = self.args.output_dir,
+            output_dir = self.output_dir,
             num_train_epochs = self.args.num_train_epochs,
+            gradient_accumulation_steps=2,
+            overwrite_output_dir=True,
             per_device_train_batch_size = self.args.per_device_train_batch_size,
             per_device_eval_batch_size = self.args.per_device_train_batch_size,
             learning_rate = self.args.learning_rate,
@@ -331,7 +334,7 @@ class Dense_embedding_retrieval:
             fp16=True
         )
         
-        model_path = self.args.output_dir
+        model_path = self.output_dir
         checkpoints = sorted(glob(model_path + '/checkpoint-*'), key=lambda x: int(x.split('-')[-1]), reverse=True)
         
         if not checkpoints:
@@ -603,7 +606,7 @@ class Dense_embedding_retrieval:
                 tmp = {
                     'question': example['question'],
                     'id': example['id'],
-                    'context': ' '.join([example['context'][pid] for pid in topk_indices[0]])
+                    'context': '[SEP]'.join([example['context'][pid] for pid in topk_indices[0]])
                     }
                 if "original_context" in example.keys():
                     tmp["original_context"] = example["original_context"]
@@ -655,9 +658,24 @@ class Dense_embedding_retrieval:
         tokenizer = transformers.AutoTokenizer.from_pretrained(self.args.model_name)
 
         with torch.no_grad():
-            query_vec = query_vec.to(self.device)
-            q_embs = self.model.q_model(**query_vec).cpu()
-            # 패시지 데이터 가져오기
+            query_dataset = torch.utils.data.TensorDataset(query_vec['input_ids'], query_vec['attention_mask'], query_vec['token_type_ids'])
+            batch_size = 16  # 원하는 배치 크기 설정
+            query_loader = torch.utils.data.DataLoader(query_dataset, batch_size=batch_size)
+
+            # 배치 처리
+            q_embs_list = []
+            for batch in query_loader:
+                input_ids, attention_mask, token_type_ids = [t.to(self.device) for t in batch]
+                
+                # 배치 데이터를 모델에 넣어 q_embs 생성
+                batch_query_vec = {'input_ids': input_ids, 'attention_mask': attention_mask, 'token_type_ids': token_type_ids}
+                q_embs = self.model.q_model(**batch_query_vec).cpu()
+
+                # 각 배치의 임베딩 결과를 리스트에 추가
+                q_embs_list.append(q_embs)
+
+            # 배치 결과들을 모두 합침
+            q_embs = torch.cat(q_embs_list, dim=0)
             p_embs = []
             batch_size = self.args.per_device_train_batch_size
             for i in tqdm(range(0, len(passages), batch_size)):
@@ -685,7 +703,7 @@ class Dense_embedding_retrieval:
             tmp = {
                 "question": example["question"],
                 "id": example["id"],
-                "context": " ".join([passages[pid] for pid in doc_indices[idx]]),
+                "context": "[SEP]".join([passages[pid] for pid in doc_indices[idx]]),
             }
 
             if "context" in example.keys() and "answers" in example.keys():
@@ -709,7 +727,7 @@ class Dense_embedding_retrieval:
                 }
             )
             datasets = DatasetDict({"validation": Dataset.from_pandas(df, features=f)})
-        if mode == 'eval':
+        if mode == 'eval' or mode == 'making':
             f = Features(
                 {
                     "context": Value(dtype="string", id=None),
