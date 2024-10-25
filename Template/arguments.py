@@ -38,11 +38,11 @@ class TF_IDF_retrieval_arguments:
 @dataclass
 class BM25_retrieval_arguments:
     data_route: Optional[str] = field(
-        default='/data/ephemeral/home/practice/data/train_dataset',
+        default='/data/ephemeral/data/train_dataset',
         metadata={'help': "데이터셋 위치입니다."}
     )
     test_data_route: Optional[str] = field(
-        default='/data/ephemeral/home/practice/data/test_dataset',
+        default='/data/ephemeral/data/test_dataset',
         metadata={'help': '테스트 데이터셋 위치입니다.'}
     )
     k: int = field(
@@ -50,7 +50,7 @@ class BM25_retrieval_arguments:
         metadata={'help': '비슷한 문서 중 몇 개를 내보낼지를 결정합니다.'}
     )
     wiki_route: str = field(
-        default = '/data/ephemeral/home/practice/data/wikipedia_documents.json',
+        default = '/data/ephemeral/data/wikipedia_documents.json',
         metadata={'help': '위키 데이터의 경로입니다.'}
     )
     data_path: str = field(
@@ -58,11 +58,11 @@ class BM25_retrieval_arguments:
         metadata={'help': 'BM25 검색 결과를 저장할 경로입니다.'}
     )
     bm25_tokenizer: str = field(
-        default="klue/roberta-small",
+        default="klue/roberta-large",
         metadata={'help': 'BM25 검색에서 사용할 토크나이저를 설정합니다.'}
     )
     model_name: str = field(
-        default="klue/bert-base",
+        default="klue/roberta-large",
         metadata={'help': '토크나이저를 지정합니다. BM25에서도 동일하게 사용할 수 있습니다.'}
     )
 
@@ -72,11 +72,11 @@ class BM25_retrieval_arguments:
 @dataclass
 class Dense_search_retrieval_arguments:
     data_route : Optional[str] = field(
-        default = '/data/ephemeral/home/practice/data/train_dataset',
+        default = '/data/ephemeral/data/train_dataset',
         metadata = {'help' : "데이터셋 위치입니다."},
     )
     test_data_route : Optional[str] = field(
-        default = '/data/ephemeral/home/practice/data/test_dataset',
+        default = '/data/ephemeral/data/test_dataset',
         metadata = {'help' : '테스트 데이터셋 위치입니다.'}
     )
     
@@ -94,7 +94,7 @@ class Dense_search_retrieval_arguments:
         metadata = {'help': "모델이름 입니다."}
     )
     wiki_route : str = field(
-        default = '/data/ephemeral/home/practice/data/wikipedia_documents.json',
+        default = '/data/ephemeral/data/wikipedia_documents.json',
         metadata = {'help' : '위키데이터의 경로입니다.'}
     )
     num_neg : int = field(
@@ -114,11 +114,11 @@ class Dense_search_retrieval_arguments:
         metadata = {'help' : '교차검증을 통해 학습을 할 때의 epoch 수입니다.'}
     )
     per_device_train_batch_size : int = field(
-        default = 8,
+        default = 16,
         metadata = {'help': "Dense embedding 모델의 배치사이즈입니다."}
     )
     per_device_eval_batch_size : int = field(
-        default = 8,
+        default = 16,
         metadata = {'help' : 'eval과정에서의 batch size입니다.'}
     )
     learning_rate : float = field(
@@ -134,7 +134,7 @@ class Dense_search_retrieval_arguments:
         metadata = {'help' : 'faiss 클러스터를 몇개로 할 지 정합니다.'}
     )
     top_k : int = field(
-        default = 20,
+        default = 40,
         metadata = {'help' : '몇개의 후보를 faiss indexer에서 뽑을건지 정합니다.'}
     )
     use_wandb : bool = field(
@@ -167,7 +167,7 @@ class Extraction_based_MRC_arguments:
         metadata = {'help' : '긴 컨텍스트를 나눌 때 앞의 컨텍스트와 얼마나 겹치게 시퀀스를 구성할 것인지 정합니다.'}
     )
     model_name : str = field(
-        default = "klue/roberta-large",
+        default = "vaiv/kobigbird-roberta-large",
         metadata = {'help' : '훈련에 사용할 모델을 정의합니다.'}
     )
     model_path : str = field(
@@ -195,7 +195,7 @@ class Extraction_based_MRC_arguments:
         metadata = {'help': "Extraction_base 모델의 배치사이즈입니다."}
     )
     num_train_epochs : int = field(
-        default = 2,
+        default = 4,
         metadata = {'help' : '에폭을 정합니다.'}
     )
     n_best_size : int = field(
@@ -207,11 +207,11 @@ class Extraction_based_MRC_arguments:
         metadata = {'help' : '답변의 최대 길이를 설정합니다.'}
     )
     data_route: Optional[str] = field(
-        default = '/data/ephemeral/home/practice/data/train_dataset',
+        default = '/data/ephemeral/data/train_dataset',
         metadata = {'help' :"데이터셋 위치입니다."},
     )
     test_data_route : Optional[str] = field(
-        default = '/data/ephemeral/Jung/level2-mrc-nlp-10/data/test_dataset',
+        default = '/data/ephemeral/data/test_dataset',
         metadata = {'help' : '테스트 데이터셋 위치입니다.'}
     )
     doc_stride : int = field(
