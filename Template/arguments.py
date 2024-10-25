@@ -114,15 +114,15 @@ class Dense_search_retrieval_arguments:
         metadata = {'help' : '교차검증을 통해 학습을 할 때의 epoch 수입니다.'}
     )
     per_device_train_batch_size : int = field(
-        default = 16,
+        default = 8,
         metadata = {'help': "Dense embedding 모델의 배치사이즈입니다."}
     )
     per_device_eval_batch_size : int = field(
-        default = 16,
+        default = 8,
         metadata = {'help' : 'eval과정에서의 batch size입니다.'}
     )
     learning_rate : float = field(
-        default = 3e-5,
+        default = 2e-5,
         metadata = {'help': "러닝레이트입니다."}
     )
     weight_decay : float = field(
@@ -134,7 +134,7 @@ class Dense_search_retrieval_arguments:
         metadata = {'help' : 'faiss 클러스터를 몇개로 할 지 정합니다.'}
     )
     top_k : int = field(
-        default = 40,
+        default = 20,
         metadata = {'help' : '몇개의 후보를 faiss indexer에서 뽑을건지 정합니다.'}
     )
     use_wandb : bool = field(
@@ -155,7 +155,7 @@ class Dense_search_retrieval_arguments:
 @dataclass
 class Extraction_based_MRC_arguments:
     max_seq_length : int = field(
-        default = 384,
+        default = 512,
         metadata = {'help' : '질문과 컨텍스트, special 토큰을 합한 문자열의 최대 길이입니다.'}
     )
     pad_to_max_length : bool = field(
@@ -167,7 +167,7 @@ class Extraction_based_MRC_arguments:
         metadata = {'help' : '긴 컨텍스트를 나눌 때 앞의 컨텍스트와 얼마나 겹치게 시퀀스를 구성할 것인지 정합니다.'}
     )
     model_name : str = field(
-        default = "vaiv/kobigbird-roberta-large",
+        default = "uomnf97/klue-roberta-finetuned-korquad-v2",
         metadata = {'help' : '훈련에 사용할 모델을 정의합니다.'}
     )
     model_path : str = field(
@@ -187,19 +187,19 @@ class Extraction_based_MRC_arguments:
         metadata = {'help' : '프로세스 몇개 쓸건지입니다. 높으면 빠르긴한데 메모리를 많이씁니다.'}
     )
     per_device_train_batch_size : int = field(
-        default = 8,
+        default = 16,
         metadata = {'help': "Extraction_base 모델의 배치사이즈입니다."}
     )
     per_device_eval_batch_size : int = field(
-        default = 8,
+        default = 16,
         metadata = {'help': "Extraction_base 모델의 배치사이즈입니다."}
     )
     num_train_epochs : int = field(
-        default = 4,
+        default = 3,
         metadata = {'help' : '에폭을 정합니다.'}
     )
     n_best_size : int = field(
-        default = 40,
+        default = 20,
         metadata = {'help' : '가능한 답변의 개수를 설정합니다.'}
     )
     max_answer_length : int = field(
@@ -235,7 +235,7 @@ class Extraction_based_MRC_arguments:
         metadata = {'help' : 'wandb API 키 입니다.'}
     )
     learning_rate : float = field(
-        default = 3e-5,
+        default = 2e-5,
         metadata = {'help' : '러닝레이트입니다.'}
     )
     kfold : int = field(

@@ -23,6 +23,8 @@ from tqdm import tqdm
 from datasets import Features, Value, DatasetDict, load_from_disk, Dataset
 import wandb
 from rank_bm25 import BM25Okapi
+from sklearn.metrics import recall_score
+import numpy as np
 
 from arguments import Dense_search_retrieval_arguments, TF_IDF_retrieval_arguments, BM25_retrieval_arguments
 torch.manual_seed(2024)
@@ -285,6 +287,7 @@ class Dense_embedding_retrieval:
         f1 = f1_score(labels, predictions, average='weighted') 
 
         return {'accuracy' : accuracy, 'f1' : f1 }
+
 
     def get_trainer(self):
         train_dataset = self.datas.test_dense_train_dataset(mode = 'train')
@@ -776,7 +779,7 @@ class BM25Search:
         self.contexts = list(dict.fromkeys([v['text'] for v in wiki.values()]))
         print(f"위키 컨텍스트의 수: {len(self.contexts)}")
 
-        # BM25를 위한 토크나이저 적용 (BERT 기반 토크나이저 사용)
+        # BM25를 위한 토크나이저 적용 (BM25 기반 토크나이저 사용)
         self.tokenized_contexts = [self.tokenizer.tokenize(context) for context in self.contexts]
         self.bm25 = BM25Okapi(self.tokenized_contexts)
 

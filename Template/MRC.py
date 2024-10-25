@@ -46,6 +46,7 @@ class Extraction_based_MRC:
         self.output_dir = self.args.model_path + '_' + self.args.model_name.split('/')[-1] # 모델 이름을 바탕으로 저장 경로가 생성됩니다.
         if self.args.use_wandb:
             self.start_wandb()
+            
 
     def load_model(self):
         
@@ -113,13 +114,11 @@ class Extraction_based_MRC:
                 predictions=formatted_predictions, label_ids=references
             )
     
-    def compute_metrics(self, p: EvalPrediction):
-        return self.metric.compute(predictions = p.predictions, references = p.label_ids)
-    
     def get_trainer(self, train_dataset = None, eval_dataset = None):
         self.training_args = TrainingArguments(
             output_dir = self.output_dir,
             learning_rate = 3e-5,
+            gradient_accumulation_steps=1,
             per_device_train_batch_size = self.args.per_device_train_batch_size,
             per_device_eval_batch_size = self.args.per_device_train_batch_size,
             num_train_epochs = self.args.num_train_epochs,
@@ -153,6 +152,10 @@ class Extraction_based_MRC:
         if self.args.use_wandb:
             self.training_args.report_to = ["wandb"]
             self.training_args.run_name = "default"
+    
+            
+    def compute_metrics(self, p: EvalPrediction):
+        return self.metric.compute(predictions = p.predictions, references = p.label_ids)
             
     def train(self, train_dataset = None, eval_dataset = None):
         self.get_trainer()
@@ -391,3 +394,4 @@ class Generation_based_MRC:
 
         with open(f"predict_result/Generative_mrc_output_{self.args.model_name.split('/')[-1]}.json", 'w', encoding='utf-8') as json_file:
             json.dump(result_dict, json_file, ensure_ascii=False, indent=4)
+            
