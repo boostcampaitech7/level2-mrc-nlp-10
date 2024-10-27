@@ -55,7 +55,9 @@ ODQA는 2 Step을 거쳐 답을 도출하게 됩니다.
    - Extraction-based MRC를 EM 기준으로 수행하기 위해서는 Context 내 Answer가 포함되어 있어야한다는 생각을 기반으로 수행
    - 최소 1회, Train 데이터셋에는 평균 1.8회, Validation 데이터셋에서는 평균 1.7회 정답 단어가 포함되어 있음을 확인
 4. 언어 분석
+   
    ![언어별비율](https://github.com/user-attachments/assets/96f384e3-8c81-4dcf-8756-b548e9b6c6e5)
+   <br>
    - 한글 외에도 다양한 언어가 섞여 있는 것을 확인할 수 있음
    - Train, Validation Context의 한글 차지 비율은 60~80%로 구성
    - Test 데이터에서 한글 비율이 30% 이하인 질문은 없으며, 600개의 질문 중 12개를 제외 하고 질문의 60% 이상이 한글로 구성되어 있음
@@ -66,8 +68,7 @@ ODQA는 2 Step을 거쳐 답을 도출하게 됩니다.
 <br>
 
 ### 💾 Data Structure
-![데이터모식도](https://github.com/user-attachments/assets/9d7008c1-8f0c-478f-9c83-c1731387e8c4)
-
+<img src="https://github.com/user-attachments/assets/9d7008c1-8f0c-478f-9c83-c1731387e8c4" alt="데이터모식도" width="45%">
 
 
 <br>
