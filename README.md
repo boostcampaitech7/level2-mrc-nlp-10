@@ -66,7 +66,8 @@ ODQA는 2 Step을 거쳐 답을 도출하게 됩니다.
 <br>
 
 ### 💾 Data Structure
-![데이터모식도](https://github.com/user-attachments/assets/df0d0321-5a8b-439d-99dd-a33feabef5b4)
+![언어별비율](https://github.com/user-attachments/assets/96f384e3-8c81-4dcf-8756-b548e9b6c6e5)
+
 
 
 <br>
