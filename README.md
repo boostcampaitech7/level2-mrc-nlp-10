@@ -42,19 +42,21 @@ ODQA는 2 Step을 거쳐 답을 도출하게 됩니다.
 ### ✨ 분석 환경
 - Upstage AI Stages 제공 V100 GPU Server 활용
 - OS : Linux
+- Language : Python
+- Libraries(mainly used) : Pytorch, Hugging Face, Wandb etc.
 
 <br>
 
 ### 📚 EDA Summary
-1. 결측치 및 중복값
+**1. 결측치 및 중복값**
    - Context, Question, Answer, Answer_start 항목 중 결측치는 존재하지 않았음
    - 문서와 답변에서 중복 값이 있으나, Question과 Answer pair 측면에서 봤을 때 중복이라고 할 수 없음
-2. 단순 통계분석
+**2. 단순 통계분석**
    - 문장의 길이가 길다고 해서 Token 수도 비례해서 많지 않을 수 있음을 확인 (의미 없는 단어의 나열일 가능성 있음)
-3. 단어 포함 여부 분석
+**3. 단어 포함 여부 분석**
    - Extraction-based MRC를 EM 기준으로 수행하기 위해서는 Context 내 Answer가 포함되어 있어야한다는 생각을 기반으로 수행
    - 최소 1회, Train 데이터셋에는 평균 1.8회, Validation 데이터셋에서는 평균 1.7회 정답 단어가 포함되어 있음을 확인
-4. 언어 분석
+**4. 언어 분석**
    
    ![언어별비율](https://github.com/user-attachments/assets/96f384e3-8c81-4dcf-8756-b548e9b6c6e5)
    <br>
@@ -71,7 +73,8 @@ ODQA는 2 Step을 거쳐 답을 도출하게 됩니다.
 <img src="https://github.com/user-attachments/assets/9d7008c1-8f0c-478f-9c83-c1731387e8c4" alt="데이터모식도" width="45%">
 
 
-<br>
+<br><br>
+
 
 ### 💡 구현 기능
 - **MRC**
@@ -81,6 +84,13 @@ ODQA는 2 Step을 거쳐 답을 도출하게 됩니다.
     - TF IDF Retrieval
     - BM25 Retrieval
     - Dense search Retrieval
+
+<br>
+
+> ⚙ How To Use
+> 자세한 내용은 `Templet` > `README.md` 참고
+> - MRC, Retrieval Arguments : `Templet` > `arguments.py`
+> - Train, Validation, Test : `Templet` > `howtouse_MRC.ipynb`
 
 
 <br><br>
