@@ -5,11 +5,11 @@ from typing import Optional
 @dataclass
 class TF_IDF_retrieval_arguments:
     data_route: Optional[str] = field(
-        default = '/data/ephemeral/home/practice/data/train_dataset',
+        default = '/data/ephemeral/home/level2-mrc-nlp-10/data/train_dataset',
         metadata = {'help' : "데이터셋 위치입니다."},
     )
     test_data_route : Optional[str] = field(
-        default = '/data/ephemeral/home/practice/data/test_dataset',
+        default = '/data/ephemeral/home/level2-mrc-nlp-10/data/test_dataset',
         metadata = {'help' : '테스트 데이터셋 위치입니다.'}
     )
     k : int = field(
@@ -21,7 +21,7 @@ class TF_IDF_retrieval_arguments:
         metadata = {'help' : 'faiss 클러스터를 몇개로 할 지 정합니다.'}
     )
     wiki_route : str = field(
-        default = '/data/ephemeral/data/wikipedia_documents.json',
+        default = '/data/ephemeral/home/level2-mrc-nlp-10/data/wikipedia_documents.json',
         metadata = {'help' : '위키데이터의 경로입니다.'}
     )
     model_name : str = field(
@@ -38,11 +38,11 @@ class TF_IDF_retrieval_arguments:
 @dataclass
 class BM25_retrieval_arguments:
     data_route: Optional[str] = field(
-        default='/data/ephemeral/data/train_dataset',
+        default='/data/ephemeral/home/level2-mrc-nlp-10/data/train_dataset',
         metadata={'help': "데이터셋 위치입니다."}
     )
     test_data_route: Optional[str] = field(
-        default='/data/ephemeral/data/test_dataset',
+        default='/data/ephemeral/home/level2-mrc-nlp-10/data/test_dataset',
         metadata={'help': '테스트 데이터셋 위치입니다.'}
     )
     k: int = field(
@@ -50,7 +50,7 @@ class BM25_retrieval_arguments:
         metadata={'help': '비슷한 문서 중 몇 개를 내보낼지를 결정합니다.'}
     )
     wiki_route: str = field(
-        default = '/data/ephemeral/data/wikipedia_documents.json',
+        default = '/data/ephemeral/home/level2-mrc-nlp-10/data/wikipedia_documents.json',
         metadata={'help': '위키 데이터의 경로입니다.'}
     )
     data_path: str = field(
@@ -72,11 +72,11 @@ class BM25_retrieval_arguments:
 @dataclass
 class Dense_search_retrieval_arguments:
     data_route : Optional[str] = field(
-        default = '/data/ephemeral/data/train_dataset',
+        default = '/data/ephemeral/home/level2-mrc-nlp-10/data/train_dataset',
         metadata = {'help' : "데이터셋 위치입니다."},
     )
     test_data_route : Optional[str] = field(
-        default = '/data/ephemeral/data/test_dataset',
+        default = '/data/ephemeral/home/level2-mrc-nlp-10/data/test_dataset',
         metadata = {'help' : '테스트 데이터셋 위치입니다.'}
     )
     
@@ -90,11 +90,11 @@ class Dense_search_retrieval_arguments:
     )
 
     model_name : Optional[str] = field(
-        default = "klue/roberta-large",
+        default = "klue/roberta-small",
         metadata = {'help': "모델이름 입니다."}
     )
     wiki_route : str = field(
-        default = '/data/ephemeral/data/wikipedia_documents.json',
+        default = '/data/ephemeral/home/level2-mrc-nlp-10/data/wikipedia_documents.json',
         metadata = {'help' : '위키데이터의 경로입니다.'}
     )
     num_neg : int = field(
@@ -102,7 +102,7 @@ class Dense_search_retrieval_arguments:
         metadata = {'help': "네거티브 샘플링 몇개할건지를 고릅니다."}
     )
     num_train_epochs : int = field(
-        default = 3,
+        default = 1,
         metadata = {'help': "에폭입니다."}
     )
     kfold : int = field(

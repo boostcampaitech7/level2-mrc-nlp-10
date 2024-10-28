@@ -83,38 +83,65 @@ class BM25Search:
         else:
             return total_scores, total_indices
 
-    def search_query_bm25(self):
-        test_dataset = load_from_disk(self.args.test_data_route)
+    def search_query(self, mode = 'test'):
+        if mode == 'test':
+            test_dataset = load_from_disk(self.args.test_data_route)
+        elif mode == 'eval':
+            test_dataset = load_from_disk(self.args.data_route)
         queries = test_dataset['validation']['question']
         total = []
 
         # get_relevant_doc_bulk_bm25 메서드를 사용하여 문서 점수와 인덱스 가져오기
         doc_scores, doc_indices = self.get_relevant_doc_bulk_bm25(queries)
 
-        for idx, example in enumerate(
-            tqdm(test_dataset['validation'], desc='BM25 retrieval: ')
-        ):
+        total = []
+        for idx, example in enumerate(tqdm(test_dataset['validation'], desc = "bm25 retrieval: ")):
             tmp = {
-                'question': example['question'],
-                'id': example['id'],
-                'context': ' '.join([self.contexts[pid] for pid in doc_indices[idx]]),
-                # 'doc_scores': doc_scores[idx],  # 점수 추가
+                "question": example["question"],
+                "id": example["id"],
+                "context": " ".join([self.contexts[pid] for pid in doc_indices[idx]]),
             }
-            if 'context' in example.keys() and 'answers' in example.keys():
-                tmp['answers'] = example['answers']
+
+            if "context" in example.keys() and "answers" in example.keys():
+                tmp["original_context"] = example["context"]
+                
+                ground_truth_passage = example["context"]
+                retrieved_passages = [self.contexts[pid] for pid in doc_indices[idx]]
+                
+                # 정답이 retrieved passages에 포함되는지 여부를 확인
+                tmp["answers"] = ground_truth_passage in retrieved_passages  # True or False
             total.append(tmp)
 
-        # 데이터셋 생성
-        f = Features(
-            {
-                "context": Value(dtype="string", id=None),
-                "id": Value(dtype="string", id=None),
-                "question": Value(dtype="string", id=None),
-                # "doc_scores": Value(dtype="float32", id=None),  # 점수 필드 추가
-            }
-        )
         df = pd.DataFrame(total)
-        datasets = DatasetDict({"validation": Dataset.from_pandas(df, features=f)})
+        self.df = df
+
+        if mode == 'test':
+            f = Features(
+                {
+                    "context": Value(dtype="string", id=None),
+                    "id": Value(dtype="string", id=None),
+                    "question": Value(dtype="string", id=None),
+                }
+            )
+            datasets = DatasetDict({"validation": Dataset.from_pandas(df, features=f)})
+        if mode == 'eval':
+            f = Features(
+                {
+                    "context": Value(dtype="string", id=None),
+                    "id": Value(dtype="string", id=None),
+                    "question": Value(dtype="string", id=None),
+                    "original_context": Value(dtype="string", id=None),
+                    "answers": Value(dtype="bool", id=None)  # answers를 bool로 설정
+                }
+            )
+
+            datasets = DatasetDict({"validation": Dataset.from_pandas(df, features=f)})
+            cnt = 0
+            for i in datasets['validation']['answers']:
+                if i == True:
+                    cnt += 1
+            print('acc :',cnt / len(datasets['validation']['answers']))
+
         return datasets
 
 

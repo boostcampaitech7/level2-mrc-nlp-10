@@ -247,7 +247,7 @@ class prepare_dataset:
         return test_dataset, test_examples
 
 # -----------------------------------Dense Embedding을 위한 데이터셋을 선언하는 부분입니다--------------------------------------------------------
-    def test_dense_train_dataset(self, mode = 'train'):
+    def get_dense_dataset(self, mode = 'train'):
         if mode == 'train':
             training_dataset = self.dataset['train']
         elif mode == 'valid':
@@ -273,115 +273,6 @@ class prepare_dataset:
         )
 
         return train_dataset
-        
-    def get_dense_train_dataset(self):
-        training_dataset = self.dataset['train']
-        num_neg = self.args.num_neg
-        p_with_neg = []  # 패시지(긍정 + 부정 예시) 저장 리스트
-        labels = []  # 정답 레이블 저장 리스트
-
-        # 위키 데이터 로드
-        with open(self.args.wiki_route, 'r', encoding='utf-8') as f:
-            wiki = json.load(f)
-
-        corpus = list(dict.fromkeys([v['text'] for v in wiki.values()]))
-
-        p_tokenizer = transformers.DPRContextEncoderTokenizerFast.from_pretrained(self.args.model_name)
-        q_tokenizer = transformers.DPRQuestionEncoderTokenizerFast.from_pretrained(self.args.model_name)
-
-        for context in training_dataset['context']:
-            while True:
-                neg_idxs = np.random.choice(len(corpus), size=num_neg, replace=False)  # 부정 예시 랜덤 선택
-                neg_samples = [corpus[i] for i in neg_idxs]
-
-                # 부정 예시에 긍정 예시인 context가 없을 경우
-                if context not in neg_samples:
-                    p_neg = neg_samples + [context]  # 부정 예시와 긍정 예시를 합침
-                    random.shuffle(p_neg)  # 긍정 예시와 부정 예시의 순서를 섞음
-
-                    context_index = p_neg.index(context)  # 섞인 리스트에서 긍정 예시의 위치 찾기
-                    labels.append(context_index)  # 위치를 정답 레이블에 추가
-                    p_with_neg.extend(p_neg)  # 섞인 리스트를 전체 패시지에 추가
-                    break  
-
-
-
-        q_seqs = q_tokenizer(training_dataset['question'], padding='max_length', 
-                        truncation=True, return_tensors='pt')
-        p_seqs = p_tokenizer(p_with_neg, padding='max_length', truncation=True,
-                        return_tensors='pt')
-        max_len = p_seqs['input_ids'].size(-1)
-        
-        p_seqs['input_ids'] = p_seqs['input_ids'].view(-1, num_neg + 1, max_len)
-        p_seqs['attention_mask'] = p_seqs['attention_mask'].view(-1, num_neg + 1, max_len)
-        p_seqs['token_type_ids'] = p_seqs['token_type_ids'].view(-1, num_neg + 1, max_len)
-        
-
-        train_dataset = DenseDataset(
-            p_seqs['input_ids'],
-            p_seqs['attention_mask'],
-            p_seqs['token_type_ids'],
-            q_seqs['input_ids'],
-            q_seqs['attention_mask'],
-            q_seqs['token_type_ids'],
-            labels
-        )
-
-        return train_dataset
-
-            
-
-    def get_dense_valid_dataset(self):
-        validation_dataset = self.dataset['validation']
-        num_neg = self.args.num_neg
-        p_with_neg = []
-        labels = []
-        # 위키 데이터 로드
-        with open(self.args.wiki_route, 'r', encoding='utf-8') as f:
-            wiki = json.load(f)
-
-        corpus = list(dict.fromkeys([v['text'] for v in wiki.values()]))
-
-        p_tokenizer = transformers.DPRContextEncoderTokenizerFast.from_pretrained(self.args.model_name)
-        q_tokenizer = transformers.DPRQuestionEncoderTokenizerFast.from_pretrained(self.args.model_name)
-
-
-        for context in validation_dataset['context']:
-            while True:
-                neg_idxs = np.random.choice(len(corpus), size=num_neg, replace=False)  # 부정 예시 랜덤 선택
-                neg_samples = [corpus[i] for i in neg_idxs]
-
-                # 부정 예시에 긍정 예시인 context가 없을 경우
-                if context not in neg_samples:
-                    p_neg = neg_samples + [context]  # 부정 예시와 긍정 예시를 합침
-                    random.shuffle(p_neg)  # 긍정 예시와 부정 예시의 순서를 섞음
-
-                    context_index = p_neg.index(context)  # 섞인 리스트에서 긍정 예시의 위치 찾기
-                    labels.append(context_index)  # 위치를 정답 레이블에 추가
-                    p_with_neg.extend(p_neg)  # 섞인 리스트를 전체 패시지에 추가
-                    break  # 반복문 종료 (새로운 부정 예시 선택이 필요 없음)
-
-
-        q_seqs = q_tokenizer(validation_dataset['question'], padding='max_length', 
-                        truncation=True, return_tensors='pt')
-        p_seqs = p_tokenizer(p_with_neg, padding='max_length', truncation=True,
-                        return_tensors='pt')
-
-        max_len = p_seqs['input_ids'].size(-1)
-        p_seqs['input_ids'] = p_seqs['input_ids'].view(-1, num_neg + 1, max_len)
-        p_seqs['attention_mask'] = p_seqs['attention_mask'].view(-1, num_neg + 1, max_len)
-        p_seqs['token_type_ids'] = p_seqs['token_type_ids'].view(-1, num_neg + 1, max_len)
-
-        valid_dataset = DenseDataset(p_seqs['input_ids'], 
-                                      p_seqs['attention_mask'],
-                                      p_seqs['token_type_ids'],
-                                      q_seqs['input_ids'], 
-                                      q_seqs['attention_mask'],
-                                      q_seqs['token_type_ids'],
-                                      labels
-        )
-
-        return valid_dataset
     
     def get_dense_queries_for_search(self, mode = 'test'):
         q_tokenizer = transformers.AutoTokenizer.from_pretrained(self.args.model_name)
