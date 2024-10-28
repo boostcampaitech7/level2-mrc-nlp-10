@@ -1,0 +1,10 @@
+Extraction_based_MRC_outputs*
+Generative*
+predict_result
+bm25_retrieval_result
+retrieval_result
+wandb
+__pycache__
+practice.ipynb
+Dense_embedding_retrieval_model_results
+reranked
