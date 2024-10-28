@@ -116,7 +116,7 @@ BM 25 리트리버는 tfidf에서 문서의 길이까지 고려하여(정규화)
 retrieval에 class를 추가하고 arguments.py에 argument들을, 데이터를 불러오는 코드들은 All_dataset.py를 통해 넣으셔도 좋고,
 독자적으로 코드를 만들어서 나중에 MRC 모델을 불러온 뒤 model.inference(BM25result)형태로 추론할 수도 있습니다.
 
-### 2. Dense Embedding model 만들기 (난이도 중) (해결)
+### 2. Dense Embedding model 만들기 (난이도 중) (석현님과 내가 해결)
 Dense Embedding Model은 이미 만들어졌지만, q_model과 p_model을 나눠서 학습하자니 메모리가 부족하여 두 가중치를 합치는 방향으로 학습하고 있습니다.
 근데 마스터님께서 두 모델의 가중치를 전부 공유해버리면 의미가 없다고 말씀하셨기에 Head 부분을 linear모델로 나누어서 학습하였었는데
 학습을 진행할수록 loss가 올라가고 accuracy가 떨어지는 기이한 현상이 발생중입니다.
